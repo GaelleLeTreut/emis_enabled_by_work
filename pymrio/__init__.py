@@ -60,7 +60,13 @@ from pymrio.tools.iomath import (
     calc_x,
     calc_x_from_L,
     calc_Z,
+    calc_B,
+    calc_G,
+    calc_Z_from_B,
+    calc_iec,
+    calc_ibe,
 )
+
 from pymrio.tools.iometadata import MRIOMetaData
 from pymrio.tools.ioparser import *
 from pymrio.tools.ioutil import build_agg_matrix, build_agg_vec
