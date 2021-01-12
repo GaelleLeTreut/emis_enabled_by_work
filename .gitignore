@@ -6,6 +6,9 @@
 
 # folders and files which are not that important or can be reproduced easily
 /**/__pycache__/
+/**/data/
+/**/outputs/
+
 Session.vim
 # binary files
 #*.xls

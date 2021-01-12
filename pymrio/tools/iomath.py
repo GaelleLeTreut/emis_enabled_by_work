@@ -410,3 +410,168 @@ def calc_accounts(S, L, Y, nr_sectors):
     )
 
     return (D_cba, D_pba, D_imp, D_exp)
+
+def calc_B(Z, x):
+    """Calculate the B matrix (Ghosh) from Z and x
+
+    B is a normalized version of the industrial flows Z
+
+    Parameters
+    ----------
+    Z : pandas.DataFrame or numpy.array
+        Symmetric input output table (flows)
+    x : pandas.DataFrame or numpy.array
+        Industry output column vector
+
+    Returns
+    -------
+    pandas.DataFrame or numpy.array
+        Symmetric input output table (coefficients) A
+        The type is determined by the type of Z.
+        If DataFrame index/columns as Z
+
+    """
+    if (type(x) is pd.DataFrame) or (type(x) is pd.Series):
+        x = x.values
+    if (type(x) is not np.ndarray) and (x == 0):
+        recix = 0
+    else:
+        with warnings.catch_warnings():
+            # catch the divide by zero warning
+            # we deal wit that by setting to 0 afterwards
+            warnings.simplefilter("ignore")
+            recix = 1 / x
+        recix[recix == np.inf] = 0
+        recix = recix.reshape((1, -1))
+    # use numpy broadcasting - factor ten faster
+    # Mathematical form - slow
+    # return Z.dot(np.diagflat(recix))
+    if type(Z) is pd.DataFrame:
+        return pd.DataFrame(np.transpose(Z.values) * recix, index=Z.index, columns=Z.columns)
+    else:
+        return np.transpose(Z) * recix
+
+
+def calc_G(B):
+    """Calculate the Leontief L from B
+
+    G = inverse matrix of (I - B)
+
+    Where I is an identity matrix of same shape as A
+
+    Comes from:
+        x = Bx + VA  =>  (I-B)x = VA
+    Where:
+        B: Ghosh coefficient input () - output () table
+        x: output vector
+        VA: value added block
+
+    Hence, G allows to derive a required output vector x for a given VA
+
+    Parameters
+    ----------
+    G : pandas.DataFrame or numpy.array
+        Symmetric input output table (coefficients)
+
+    Returns
+    -------
+    pandas.DataFrame or numpy.array
+        Ghosh input output table G
+        The type is determined by the type of B.
+        If DataFrame index/columns as B
+
+    """
+    I = np.eye(B.shape[0])  # noqa
+    if type(B) is pd.DataFrame:
+        return pd.DataFrame(np.linalg.inv(I - B), index=B.index, columns=B.columns)
+    else:
+        return np.linalg.inv(I - B)
+
+def calc_Z_from_B(B, x):
+    """calculate the Z matrix (flows) from B and x
+
+    Z = x[None, :] * transpose(B)
+
+    Parameters
+    ----------
+    B : pandas.DataFrame or numpy.array
+        Symmetric input output table (coefficients)
+    x : pandas.DataFrame or numpy.array
+        Industry output column vector
+
+    Returns
+    -------
+    pandas.DataFrame or numpy.array
+        Symmetric input output table (flows) Z
+        The type is determined by the type of B.
+        If DataFrame index/columns as B
+
+    """
+    if (type(x) is pd.DataFrame) or (type(x) is pd.Series):
+        x = x.values
+    #x = x.reshape((1, -1))  # use numpy broadcasting - much faster
+    # (but has to ensure that x is a column vector)
+    # old mathematical form:
+    # return A.dot(np.diagflat(x))
+    if type(B) is pd.DataFrame:
+        return pd.DataFrame(x * np.transpose(B.values), index=B.index, columns=B.columns)
+    else:
+        return x * np.transpose(B)
+        
+def calc_iec(S, G):
+    """Calculate the income emission content of the VA production factor from S and G
+
+    iec = S * G
+
+    Parameters
+    ----------
+    G : pandas.DataFrame or numpy.array
+        Ghosh matrix, dimension input output table (coefficient)
+    S : pandas.DataFrame or numpy.array
+        One type of direct impact coefficients S 
+        (1,nb sectors) dimension (eg combustion)
+        #-> need to be improved
+
+    Returns
+    -------
+    pandas.DataFrame or numpy.array
+        Symmetric input output table (coefficients) iec
+        The type is determined by the type of G.
+        If DataFrame index/columns as G
+
+    """
+    if (type(S) is pd.DataFrame) or (type(S) is pd.Series):
+        S = S.values
+        S = S.reshape(-1,1)
+    if type(G) is pd.DataFrame:
+        return pd.DataFrame(S * G, index=G.index, columns=G.columns)
+    else:
+        return S * G
+
+def calc_ibe(iec, value_added):
+    """Calculate the income based emissions of VA from emission content and VA factors
+
+    ibe = iec * VA
+
+    Parameters
+    ----------
+    iec : pandas.DataFrame or numpy.array
+        Emission content matrix, dimension input output table
+    VA : pandas.DataFrame or numpy.array
+        Value added block
+
+    Returns
+    -------
+    pandas.DataFrame or numpy.array
+        Income based emissions by VA factors
+        The type is determined by the type of Value Added.
+        If DataFrame index/columns as value_added
+    """
+
+    if (type(iec) is pd.DataFrame) or (type(iec) is pd.Series):
+        iec = iec.values
+    if type(value_added) is pd.DataFrame:
+        ibe = pd.DataFrame( iec.dot(np.transpose(value_added)), index = value_added.columns, columns= value_added.index )
+        return np.transpose(ibe)
+    else:
+        return np.transpose(iec.dot(np.transpose(value_added)))
