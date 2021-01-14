@@ -529,13 +529,13 @@ def calc_iec(S, G):
         Ghosh matrix, dimension input output table (coefficient)
     S : pandas.DataFrame or numpy.array
         One type of direct impact coefficients S 
-        (1,nb sectors) dimension (eg combustion)
+        (nb sectors, 1) dimension (eg combustion)
         #-> need to be improved
 
     Returns
     -------
     pandas.DataFrame or numpy.array
-        Symmetric input output table (coefficients) iec
+        Row vector Symmetric input output table (coefficients) iec
         The type is determined by the type of G.
         If DataFrame index/columns as G
 
@@ -543,10 +543,11 @@ def calc_iec(S, G):
     if (type(S) is pd.DataFrame) or (type(S) is pd.Series):
         S = S.values
         S = S.reshape(-1,1)
+        S = np.transpose(S)
     if type(G) is pd.DataFrame:
-        return pd.DataFrame(S * G, index=G.index, columns=G.columns)
+        return pd.DataFrame(S.dot(G), index= ['emission content'], columns=G.columns)
     else:
-        return S * G
+        return S.dot(G)
 
 def calc_ibe(iec, value_added):
     """Calculate the income based emissions of VA from emission content and VA factors
@@ -570,6 +571,7 @@ def calc_ibe(iec, value_added):
 
     if (type(iec) is pd.DataFrame) or (type(iec) is pd.Series):
         iec = iec.values
+        iec = np.diag(iec[0])
     if type(value_added) is pd.DataFrame:
         ibe = pd.DataFrame( iec.dot(np.transpose(value_added)), index = value_added.columns, columns= value_added.index )
         return np.transpose(ibe)

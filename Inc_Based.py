@@ -48,11 +48,18 @@ sec_agg_matrix = np.array([
 [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
 [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]
 ])
+#io_orig.aggregate(sector_agg=sec_agg_matrix)
+
 # Correspondance au plus proche de A38 ( 35 sectors)
-corresp_table = pd.read_csv(DATA_PATH+'\\exiobase_A38.csv', comment='#',header=0, index_col=0, sep=';')
-#io_orig.aggregate(sector_agg=np.transpose(corresp_table.values))
-#" giving names to new sectors ; doesn't work
-#io_orig.aggregate(sector_agg=np.transpose(corresp_table.values),sector_names = list(corresp_table.columns), inplace=False)
+corresp_table = pd.read_csv(DATA_PATH+'\\exiobase_A38.csv', comment='#',header=[0,1], index_col=0, sep=';')
+sec_label = ['sector label', np.array(corresp_table.columns.get_level_values(0))]
+sec_name = ['sector name', np.array(corresp_table.columns.get_level_values(1))]
+
+io_orig.aggregate(sector_agg=np.transpose(corresp_table.values),sector_names = list(corresp_table.columns.get_level_values(0)))
+#io_new = io_orig.aggregate(sector_agg=np.transpose(corresp_table.values),sector_names = list(corresp_table.columns),inplace=False)
+
+## chargement des valeurs de base
+#io_new.calc_all()
 
 ##########################
 ###### New calculations
@@ -81,6 +88,14 @@ x_consistU = np.sum(x_recalcU, -1) - np.sum(io_orig.x.values,-1)
 x_recalcR = np.vstack((io_orig.value_added.F.values, io_orig.Z.values))
 x_consistR = np.sum(x_recalcR, 0) - np.transpose(io_orig.x.values)
 # => doit faire 0... 
+
+### a refaire avec io_new
+#x_recalcU = np.hstack(( io_orig.Z.values, io_orig.Y.values))
+#x_consistU = np.sum(x_recalcU, -1) - np.sum(io_orig.x.values,-1)
+## SUPPLY
+## -> verifier que sur les lignes on retrouve le X: Z + VA == X
+#x_recalcR = np.vstack((io_orig.value_added.F.values, io_orig.Z.values))
+#x_consistR = np.sum(x_recalcR, 0) - np.transpose(io_orig.x.values)
 
 ##########################
 ###### CHECKING - Ghosh Account
@@ -112,14 +127,34 @@ emis_comb_tot_FR =  (emis_comb_sec_FR +emis_comb_direct_FR)*1E-9
 
 
 ##########################
-###### INCOME BASED EMISSIONS AND EMISSION CONTENTS from combustion
+###### INCOME BASED EMISSIONS AND EMISSION CONTENTS
 ##########################
-## in kgCO2
-income_based_emis_tot = (io_orig.CO2_emissions.S.loc['combustion'].dot(io_orig.G)).dot(np.transpose(io_orig.value_added.F))
-income_based_emis_tot_Gt = ((io_orig.CO2_emissions.S.loc['combustion'].dot(io_orig.G)).dot(np.transpose(io_orig.value_added.F)))*1e-12
+##  from combustion only - in kgCO2
+#income_based_emis_tot = (io_orig.CO2_emissions.S.loc['combustion'].dot(io_orig.G)).dot(np.transpose(io_orig.value_added.F))
+#income_based_emis_tot_Gt = ((io_orig.CO2_emissions.S.loc['combustion'].dot(io_orig.G)).dot(np.transpose(io_orig.value_added.F)))*1e-12
+#io_orig.inc_emis_content = pymrio.calc_iec(io_orig.CO2_emissions.S.loc['combustion'], io_orig.G)
+## unit gCO2/euro for emissions content and income based emissions in tCO2
+#io_orig.inc_emis_content = io_orig.inc_emis_content*1e-3
+#io_orig.income_based_emis =  pymrio.calc_ibe(io_orig.inc_emis_content,io_orig.value_added.F)
 
-io_orig.inc_emis_content = pymrio.calc_iec(io_orig.CO2_emissions.S.loc['combustion'], io_orig.G)
+##  from CO2 emissions - in kgCO2
+## New line with Total 
+io_orig.CO2_emissions.F.loc['Total',:]= io_orig.CO2_emissions.F.sum(axis=0)
+io_orig.CO2_emissions.F_Y.loc['Total',:]= io_orig.CO2_emissions.F_Y.sum(axis=0)
+
+### Calculate S for total CO2 emissions... 
+io_orig.CO2_emissions.S = pymrio.calc_S(io_orig.CO2_emissions.F,io_orig.x)
+income_based_emis_tot = (io_orig.CO2_emissions.S.loc['Total'].dot(io_orig.G)).dot(np.transpose(io_orig.value_added.F))
+income_based_emis_tot_Gt = ((io_orig.CO2_emissions.S.loc['Total'].dot(io_orig.G)).dot(np.transpose(io_orig.value_added.F)))*1e-12
+
+io_orig.inc_emis_content = pymrio.calc_iec(io_orig.CO2_emissions.S.loc['Total'], io_orig.G)
+## unit gCO2/euro for emissions content and income based emissions in tCO2
+io_orig.inc_emis_content = io_orig.inc_emis_content*1e-3
 io_orig.income_based_emis =  pymrio.calc_ibe(io_orig.inc_emis_content,io_orig.value_added.F)
+
+## FRANCE only 
+emission_content_FR = np.transpose(io_orig.inc_emis_content).loc[['FR']]
+income_based_emis_FR = np.transpose(io_orig.income_based_emis).loc[['FR']]
 
 
 ##########################
@@ -130,16 +165,19 @@ io_orig.income_based_emis =  pymrio.calc_ibe(io_orig.inc_emis_content,io_orig.va
 ## corresp_table pour aggréger Income based emissions io_orig.income_based_emis  
 ### io_orig.inc_emis_content = io_orig.income_based_emis / io_orig.value_added.F
 
-
 ##########################
 ###### SAVE FILES
 ##########################
 ##1) Excel files
-io_orig.value_added.F.to_excel(OUTPUTS_PATH+'\\VA_files.xlsx')
-io_orig.Z.to_excel(OUTPUTS_PATH+'/IC_files.xlsx')
-io_orig.Y.to_excel(OUTPUTS_PATH+'/FD_files.xlsx')
-io_orig.income_based_emis.to_excel(OUTPUTS_PATH+'/IncBasedEmis_file.xlsx')
-io_orig.income_based_emis.to_excel(OUTPUTS_PATH+'/inc_emis_content.xlsx')
+io_orig.CO2_emissions.F_Y.to_excel(OUTPUTS_PATH+'\\CO2emisDirect.xlsx')
+io_orig.CO2_emissions.F.to_excel(OUTPUTS_PATH+'\\CO2emisProd.xlsx')
+io_orig.value_added.F.to_excel(OUTPUTS_PATH+'\\VA.xlsx')
+io_orig.Z.to_excel(OUTPUTS_PATH+'/IC.xlsx')
+io_orig.Y.to_excel(OUTPUTS_PATH+'/FD.xlsx')
+io_orig.income_based_emis.to_excel(OUTPUTS_PATH+'/IncBasedEmis.xlsx')
+io_orig.inc_emis_content.to_excel(OUTPUTS_PATH+'/inc_emis_content.xlsx')
+emission_content_FR.to_excel(OUTPUTS_PATH+'/inc_emis_content_FR.xlsx')
+income_based_emis_FR.to_excel(OUTPUTS_PATH+'/inc_based_emis_FR.xlsx')
 ##1) CSV files ?
 
 ##########################
