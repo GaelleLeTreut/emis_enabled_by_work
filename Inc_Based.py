@@ -16,8 +16,20 @@ import os
 ##########################
 # récupérer le chemin du répertoire courant
 path = os.getcwd()
-DATA_PATH = path +'\\data'
-OUTPUTS_PATH = path +'\\outputs'
+data_folder='data'
+output_folder='outputs'
+#create output_folder if not exist
+if not os.path.exists(data_folder):
+    os.makedirs(data_folder)
+    print('Creating ' + data_folder + ' to store data')
+
+#create output_folder if not exist
+if not os.path.exists(output_folder):
+    os.makedirs(output_folder)
+    print('Creating ' + output_folder + ' to store outputs')
+
+DATA_PATH = path + os.sep + data_folder
+OUTPUTS_PATH = path + os.sep + output_folder
 
 
 ##########################
@@ -29,7 +41,9 @@ OUTPUTS_PATH = path +'\\outputs'
 
 ###### Chargement de la base EXIOBASE
 ## Donné par Antoine
-exiobase_storage = DATA_PATH+'\\IOT_2015_basic.zip'
+exiobase_storage = DATA_PATH + os.sep + 'IOT_2015_basic.zip'
+#maybe unnecessary to get the full path: if so when could keep
+#exiobase_storage = data_folder + os.sep + 'IOT_2015_basic.zip'
 ## Download from exiobase Zenodo
 ##exiobase_storage = DATA_PATH+'\\IOT_2015_pxp.zip'
 
@@ -51,7 +65,7 @@ sec_agg_matrix = np.array([
 #io_orig.aggregate(sector_agg=sec_agg_matrix)
 
 # Correspondance au plus proche de A38 ( 35 sectors)
-corresp_table = pd.read_csv(DATA_PATH+'\\exiobase_A38.csv', comment='#',header=[0,1], index_col=0, sep=';')
+corresp_table = pd.read_csv(DATA_PATH + os.sep + 'exiobase_A38.csv', comment='#',header=[0,1], index_col=0, sep=';')
 sec_label = ['sector label', np.array(corresp_table.columns.get_level_values(0))]
 sec_name = ['sector name', np.array(corresp_table.columns.get_level_values(1))]
 
