@@ -18,7 +18,7 @@ import os
 path = os.getcwd()
 data_folder='data'
 output_folder='outputs'
-#create output_folder if not exist
+#create data_folder if not exist
 if not os.path.exists(data_folder):
     os.makedirs(data_folder)
     print('Creating ' + data_folder + ' to store data')
@@ -28,24 +28,24 @@ if not os.path.exists(output_folder):
     os.makedirs(output_folder)
     print('Creating ' + output_folder + ' to store outputs')
 
-DATA_PATH = path + os.sep + data_folder
-OUTPUTS_PATH = path + os.sep + output_folder
+DATA_PATH = path + os.sep + data_folder + os.sep
+OUTPUTS_PATH = path + os.sep + output_folder + os.sep
 
 
 ##########################
 ###### Chargement de la base MRIO
 ##########################
 ###### Chargement de la base EORA
-#eora_storage = DATA_PATH+'\\Eora26_2015_bp'
+#eora_storage = DATA_PATH+'Eora26_2015_bp'
 #io_orig = pymrio.parse_eora26(year=2015, path=eora_storage)
 
 ###### Chargement de la base EXIOBASE
 ## Donné par Antoine
-exiobase_storage = DATA_PATH + os.sep + 'IOT_2015_basic.zip'
+exiobase_storage = DATA_PATH + 'IOT_2015_basic.zip'
 #maybe unnecessary to get the full path: if so when could keep
 #exiobase_storage = data_folder + os.sep + 'IOT_2015_basic.zip'
 ## Download from exiobase Zenodo
-##exiobase_storage = DATA_PATH+'\\IOT_2015_pxp.zip'
+##exiobase_storage = DATA_PATH+'IOT_2015_pxp.zip'
 
 io_orig =  pymrio.parse_exiobase3(exiobase_storage)
 
@@ -65,7 +65,7 @@ sec_agg_matrix = np.array([
 #io_orig.aggregate(sector_agg=sec_agg_matrix)
 
 # Correspondance au plus proche de A38 ( 35 sectors)
-corresp_table = pd.read_csv(DATA_PATH + os.sep + 'exiobase_A38.csv', comment='#',header=[0,1], index_col=0, sep=';')
+corresp_table = pd.read_csv(DATA_PATH + 'exiobase_A38.csv', comment='#',header=[0,1], index_col=0, sep=';')
 sec_label = ['sector label', np.array(corresp_table.columns.get_level_values(0))]
 sec_name = ['sector name', np.array(corresp_table.columns.get_level_values(1))]
 
@@ -183,15 +183,15 @@ income_based_emis_FR = np.transpose(io_orig.income_based_emis).loc[['FR']]
 ###### SAVE FILES
 ##########################
 ##1) Excel files
-io_orig.CO2_emissions.F_Y.to_excel(OUTPUTS_PATH+'\\CO2emisDirect.xlsx')
-io_orig.CO2_emissions.F.to_excel(OUTPUTS_PATH+'\\CO2emisProd.xlsx')
-io_orig.value_added.F.to_excel(OUTPUTS_PATH+'\\VA.xlsx')
-io_orig.Z.to_excel(OUTPUTS_PATH+'/IC.xlsx')
-io_orig.Y.to_excel(OUTPUTS_PATH+'/FD.xlsx')
-io_orig.income_based_emis.to_excel(OUTPUTS_PATH+'/IncBasedEmis.xlsx')
-io_orig.inc_emis_content.to_excel(OUTPUTS_PATH+'/inc_emis_content.xlsx')
-emission_content_FR.to_excel(OUTPUTS_PATH+'/inc_emis_content_FR.xlsx')
-income_based_emis_FR.to_excel(OUTPUTS_PATH+'/inc_based_emis_FR.xlsx')
+io_orig.CO2_emissions.F_Y.to_excel(OUTPUTS_PATH+'CO2emisDirect.xlsx')
+io_orig.CO2_emissions.F.to_excel(OUTPUTS_PATH+'CO2emisProd.xlsx')
+io_orig.value_added.F.to_excel(OUTPUTS_PATH+'VA.xlsx')
+io_orig.Z.to_excel(OUTPUTS_PATH+'IC.xlsx')
+io_orig.Y.to_excel(OUTPUTS_PATH+'FD.xlsx')
+io_orig.income_based_emis.to_excel(OUTPUTS_PATH+'IncBasedEmis.xlsx')
+io_orig.inc_emis_content.to_excel(OUTPUTS_PATH+'inc_emis_content.xlsx')
+emission_content_FR.to_excel(OUTPUTS_PATH+'inc_emis_content_FR.xlsx')
+income_based_emis_FR.to_excel(OUTPUTS_PATH+'inc_based_emis_FR.xlsx')
 ##1) CSV files ?
 
 ##########################
