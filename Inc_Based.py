@@ -166,6 +166,11 @@ io_orig.inc_emis_content = pymrio.calc_iec(io_orig.CO2_emissions.S.loc['Total'],
 io_orig.inc_emis_content = io_orig.inc_emis_content*1e-3
 io_orig.income_based_emis =  pymrio.calc_ibe(io_orig.inc_emis_content,io_orig.value_added.F)
 
+## Décomposition  Emission  content (in gCO2/euro)  = S + SB + SB^2 + ..
+io_orig.inc_emis_content_direct = io_orig.CO2_emissions.S.loc['Total']*1e-3
+io_orig.inc_emis_content_fo = np.transpose(pymrio.calc_iec(io_orig.CO2_emissions.S.loc['Total'],io_orig.B)*1e-3)
+io_orig.inc_emis_content_so =  np.transpose(pymrio.calc_iec(io_orig.CO2_emissions.S.loc['Total'],io_orig.B.dot(io_orig.B))*1e-3)
+
 ## FRANCE only 
 emission_content_FR = np.transpose(io_orig.inc_emis_content).loc[['FR']]
 income_based_emis_FR = np.transpose(io_orig.income_based_emis).loc[['FR']]
