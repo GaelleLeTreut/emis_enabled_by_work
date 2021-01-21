@@ -167,9 +167,12 @@ io_orig.inc_emis_content = io_orig.inc_emis_content*1e-3
 io_orig.income_based_emis =  pymrio.calc_ibe(io_orig.inc_emis_content,io_orig.value_added.F)
 
 ## Décomposition  Emission  content (in gCO2/euro)  = S + SB + SB^2 + ..
-io_orig.inc_emis_content_direct = io_orig.CO2_emissions.S.loc['Total']*1e-3
+io_orig.inc_emis_content_direct = pd.DataFrame(io_orig.CO2_emissions.S.loc['Total']*1e-3)
+io_orig.inc_emis_content_direct.rename(columns={'Total': 'Direct emis content'}, inplace=True)
 io_orig.inc_emis_content_fo = np.transpose(pymrio.calc_iec(io_orig.CO2_emissions.S.loc['Total'],io_orig.B)*1e-3)
+io_orig.inc_emis_content_fo.rename(columns={'emission content': 'FO emis content'}, inplace=True)
 io_orig.inc_emis_content_so =  np.transpose(pymrio.calc_iec(io_orig.CO2_emissions.S.loc['Total'],io_orig.B.dot(io_orig.B))*1e-3)
+io_orig.inc_emis_content_so.rename(columns={'emission content': 'SO emis content'}, inplace=True)
 
 ## FRANCE only 
 emission_content_FR = np.transpose(io_orig.inc_emis_content).loc[['FR']]
@@ -195,32 +198,71 @@ io_orig.Z.to_excel(OUTPUTS_PATH+'IC.xlsx')
 io_orig.Y.to_excel(OUTPUTS_PATH+'FD.xlsx')
 io_orig.income_based_emis.to_excel(OUTPUTS_PATH+'IncBasedEmis.xlsx')
 io_orig.inc_emis_content.to_excel(OUTPUTS_PATH+'inc_emis_content.xlsx')
-emission_content_FR.to_excel(OUTPUTS_PATH+'inc_emis_content_FR.xlsx')
+#emission_content_FR.to_excel(OUTPUTS_PATH+'inc_emis_content_FR.xlsx')
 income_based_emis_FR.to_excel(OUTPUTS_PATH+'inc_based_emis_FR.xlsx')
 ##1) CSV files ?
+
+
 
 ##########################
 ###### PLOTS
 ##########################
 import matplotlib.pyplot as plt
-## Ne fonctionne pas
-#io_orig.Z.plot_account('FR')
-#plt.show()
+import seaborn as sns
 
-# with plt.style.context('ggplot'):
-#      io_orig.Z.plot_account(['Total cropland area'], figsize=(15,10))
-#      plt.show()
+sns.set_context('paper', font_scale=0.9)
 
-# with plt.style.context('ggplot'):
-#     eora_agg_DEU_EU_OECD.Q.plot_account(('Total cropland area', 'Total'), figsize=(8,5))
-#     plt.show()
+## conversion d'un dataframe multi index en dataframe 'simple' pour l'utiliser plus facilement dans seaborn
+emis_cont = np.transpose(io_orig.inc_emis_content)
+check=emis_cont.reset_index(inplace=True)
+
+emis_cont_dir = io_orig.inc_emis_content_direct
+check=emis_cont_dir.reset_index(inplace=True)
+
+emis_cont_fo= io_orig.inc_emis_content_fo
+check=emis_cont_fo.reset_index(inplace=True)
+
+emis_cont_so= io_orig.inc_emis_content_so
+check=emis_cont_so.reset_index(inplace=True)
+
+## Histogramme groupé FRv s ROW
+plt.figure(figsize=(12, 8))
+sns.barplot(x="sector", hue="region", y="emission content", data=emis_cont)
+plt.xlabel("Sector code", size=12)
+plt.ylabel("gCO2/euro", size=12)
+plt.title("Emission content - France vs Rest of World", size=12)
+plt.show()
+
+## Histogramme FRANCE
+## Emissions content
+emis_cont_fr= emis_cont.loc[emis_cont['region']=='FR']
+plt.figure(figsize=(12, 8))
+sns.barplot(x="sector", y="emission content", data=emis_cont_fr,palette='deep')
+plt.xlabel("Sector code", size=12)
+plt.ylabel("gCO2/euro", size=12)
+plt.title("Emission content - France", size=12)
+plt.savefig(OUTPUTS_PATH+'fig_emis_cont_fr.jpeg', bbox_inches='tight')
+plt.show()
 
 
+# Emissions content = decompostion
+emis_cont_decomp= emis_cont_dir
+emis_cont_decomp.loc[:,'FO emis content'] = emis_cont_fo['FO emis content']
+emis_cont_decomp.loc[:,'SO emis content'] = emis_cont_so['SO emis content']
+emis_cont_decomp.loc[:,'Rest emis content'] =emis_cont['emission content'] - ( emis_cont_dir['Direct emis content'] + emis_cont_fo['FO emis content'] + emis_cont_so['SO emis content']) 
 
-##########################
-###### TO DO
-##########################
-## Gérer une sauvegarde? 
-## voir les correspondances pour agrégation secteurs/pays
+emis_cont_decomp_fr= emis_cont_decomp.loc[emis_cont_decomp['region']=='FR']
+emis_cont_decomp_fr= emis_cont_decomp_fr.drop(['region'], axis=1)
+emis_cont_decomp_fr = np.transpose(emis_cont_decomp_fr)
+emis_cont_decomp_fr.columns = emis_cont_decomp_fr.loc['sector']
+emis_cont_decomp_fr= emis_cont_decomp_fr.drop(['sector'], axis=0)
 
+#sns.set()
+plt.figure(figsize=(16, 10))
+emis_cont_decomp_fr.T.plot(kind='bar', stacked=True)
+plt.xlabel("Sector code", size=7)
+plt.ylabel("gCO2/euro", size=9)
+plt.title("Emission content decomposition- France", size=9)
+plt.savefig(OUTPUTS_PATH+'fig_decomp_emis_cont_fr.jpeg', bbox_inches='tight')
+plt.show()
 
