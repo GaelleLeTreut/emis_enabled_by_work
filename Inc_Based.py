@@ -75,6 +75,9 @@ io_orig.aggregate(sector_agg=np.transpose(corresp_table.values),sector_names = l
 ## chargement des valeurs de base
 #io_new.calc_all()
 
+## List of regions
+region_list = list(io_orig.x.index.levels[0])
+
 ##########################
 ###### New calculations
 ##########################
@@ -166,7 +169,9 @@ io_orig.inc_emis_content = pymrio.calc_iec(io_orig.CO2_emissions.S.loc['Total'],
 io_orig.inc_emis_content = io_orig.inc_emis_content*1e-3
 io_orig.income_based_emis =  pymrio.calc_ibe(io_orig.inc_emis_content,io_orig.value_added.F)
 
-## Décomposition  Emission  content (in gCO2/euro)  = S + SB + SB^2 + ..
+######
+### Décomposition  Emission  content (in gCO2/euro)  = S + SB + SB^2 + ..
+######
 io_orig.inc_emis_content_direct = pd.DataFrame(io_orig.CO2_emissions.S.loc['Total']*1e-3)
 io_orig.inc_emis_content_direct.rename(columns={'Total': 'Direct emis content'}, inplace=True)
 io_orig.inc_emis_content_fo = np.transpose(pymrio.calc_iec(io_orig.CO2_emissions.S.loc['Total'],io_orig.B)*1e-3)
@@ -178,6 +183,22 @@ io_orig.inc_emis_content_so.rename(columns={'emission content': 'SO emis content
 emission_content_FR = np.transpose(io_orig.inc_emis_content).loc[['FR']]
 income_based_emis_FR = np.transpose(io_orig.income_based_emis).loc[['FR']]
 
+######
+### Decomposition enabled emissions (in gCO2/euro)
+######
+emis_enable = io_orig.inc_emis_content.copy()
+#emis_enable[emis_enable!=0]=0
+for r in region_list:
+    rest_list = list(region_list)
+    rest_list.remove(r)
+    
+    S_enable = io_orig.CO2_emissions.S.loc['Total']*1e-3
+    S_enable.loc[rest_list]=0
+    emis_enable_r = pymrio.calc_iec(S_enable, io_orig.G)
+    emis_enable_r.rename(index={'emission content':'emis content from '+r},inplace=True)
+    emis_enable = emis_enable.append(emis_enable_r)
+    del rest_list
+emis_enable = emis_enable.drop(['emission content'])
 
 ##########################
 ###### AGGREGATION POST CALCULATION
@@ -200,9 +221,8 @@ io_orig.income_based_emis.to_excel(OUTPUTS_PATH+'IncBasedEmis.xlsx')
 io_orig.inc_emis_content.to_excel(OUTPUTS_PATH+'inc_emis_content.xlsx')
 #emission_content_FR.to_excel(OUTPUTS_PATH+'inc_emis_content_FR.xlsx')
 income_based_emis_FR.to_excel(OUTPUTS_PATH+'inc_based_emis_FR.xlsx')
-##1) CSV files ?
-
-
+#io_orig.inc_emis_content_direct.to_excel(OUTPUTS_PATH+'S.xlsx')
+#io_orig.G.to_excel(OUTPUTS_PATH+'G.xlsx')
 
 ##########################
 ###### PLOTS
@@ -212,41 +232,52 @@ import seaborn as sns
 
 sns.set_context('paper', font_scale=0.9)
 
-## conversion d'un dataframe multi index en dataframe 'simple' pour l'utiliser plus facilement dans seaborn
+######
+### conversion d'un dataframe multi index en dataframe 'simple' pour l'utiliser plus facilement dans seaborn
+######
 emis_cont = np.transpose(io_orig.inc_emis_content)
 check=emis_cont.reset_index(inplace=True)
 
-emis_cont_dir = io_orig.inc_emis_content_direct
+emis_cont_dir = io_orig.inc_emis_content_direct.copy()
 check=emis_cont_dir.reset_index(inplace=True)
 
-emis_cont_fo= io_orig.inc_emis_content_fo
+emis_cont_fo= io_orig.inc_emis_content_fo.copy()
 check=emis_cont_fo.reset_index(inplace=True)
 
-emis_cont_so= io_orig.inc_emis_content_so
+emis_cont_so= io_orig.inc_emis_content_so.copy()
 check=emis_cont_so.reset_index(inplace=True)
 
-## Histogramme groupé FRv s ROW
-plt.figure(figsize=(12, 8))
+emis_enable=np.transpose(emis_enable)
+check=emis_enable.reset_index(inplace=True)
+
+######
+### Emission content - Histogramme groupé FR vs ROW
+######
+plt.figure(figsize=(18, 12))
 sns.barplot(x="sector", hue="region", y="emission content", data=emis_cont)
 plt.xlabel("Sector code", size=12)
 plt.ylabel("gCO2/euro", size=12)
 plt.title("Emission content - France vs Rest of World", size=12)
+plt.savefig(OUTPUTS_PATH+'fig_emis_cont_FRvsRoW.jpeg', bbox_inches='tight')
 plt.show()
 
-## Histogramme FRANCE
-## Emissions content
+######
+### Emission content - Histogramme FRANCE
+######
+### Emissions content by sector
 emis_cont_fr= emis_cont.loc[emis_cont['region']=='FR']
-plt.figure(figsize=(12, 8))
+plt.figure(figsize=(18, 12))
 sns.barplot(x="sector", y="emission content", data=emis_cont_fr,palette='deep')
 plt.xlabel("Sector code", size=12)
 plt.ylabel("gCO2/euro", size=12)
 plt.title("Emission content - France", size=12)
-plt.savefig(OUTPUTS_PATH+'fig_emis_cont_fr.jpeg', bbox_inches='tight')
+plt.savefig(OUTPUTS_PATH+'fig_emis_cont_FR.jpeg', bbox_inches='tight')
 plt.show()
+plt.close()
 
 
-# Emissions content = decompostion
-emis_cont_decomp= emis_cont_dir
+### Emissions content = decompostion
+emis_cont_decomp= emis_cont_dir.copy()
 emis_cont_decomp.loc[:,'FO emis content'] = emis_cont_fo['FO emis content']
 emis_cont_decomp.loc[:,'SO emis content'] = emis_cont_so['SO emis content']
 emis_cont_decomp.loc[:,'Rest emis content'] =emis_cont['emission content'] - ( emis_cont_dir['Direct emis content'] + emis_cont_fo['FO emis content'] + emis_cont_so['SO emis content']) 
@@ -258,11 +289,29 @@ emis_cont_decomp_fr.columns = emis_cont_decomp_fr.loc['sector']
 emis_cont_decomp_fr= emis_cont_decomp_fr.drop(['sector'], axis=0)
 
 #sns.set()
-plt.figure(figsize=(16, 10))
-emis_cont_decomp_fr.T.plot(kind='bar', stacked=True)
-plt.xlabel("Sector code", size=7)
-plt.ylabel("gCO2/euro", size=9)
-plt.title("Emission content decomposition- France", size=9)
-plt.savefig(OUTPUTS_PATH+'fig_decomp_emis_cont_fr.jpeg', bbox_inches='tight')
+emis_cont_decomp_fr.T.plot(kind='bar', stacked=True, figsize=(18, 12))
+plt.xlabel("Sector code", size=12)
+plt.xticks(rotation=0,fontsize=12)
+plt.ylabel("gCO2/euro", size=12)
+plt.title("Emission content decomposition- France", size=12)
+plt.savefig(OUTPUTS_PATH+'fig_emis_cont_decomp_FR.jpeg', bbox_inches='tight')
 plt.show()
+
+######
+### Emission content - Enable emissions
+######
+for r in region_list:
+    emis_enable_r= emis_enable.loc[emis_cont['region']==r]
+    emis_enable_r= emis_enable_r.drop(['region'], axis=1)
+    emis_enable_r = np.transpose(emis_enable_r)
+    emis_enable_r.columns = emis_enable_r.loc['sector']
+    emis_enable_r= emis_enable_r.drop(['sector'], axis=0)
+
+    emis_enable_r.T.plot(kind='bar', stacked=True, figsize=(18, 12))
+    plt.xlabel("Sector code", size=12)
+    plt.xticks(rotation=0,fontsize=12)
+    plt.ylabel("gCO2/euro", size=12)
+    plt.title("Enabled emission decomposition - "+r, size=12)
+    plt.savefig(OUTPUTS_PATH+'fig_emis_cont_enabled_'+r+'.jpeg', bbox_inches='tight')
+    plt.show()
 
