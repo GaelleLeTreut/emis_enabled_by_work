@@ -26,8 +26,6 @@ else:
     print('Le fichier salaries15 est maintenant disponible au format csv')
 
 
-#Methode 1 pour le calcul des contenus en émissions
-# emis_cont_fr => from inc_based.py  
 
 #Importer base salaires15 INSEE (euro 2015)
 full_insee_table = pd.read_csv(data_dir + os.sep + 'salaries15.csv',sep=',',index_col=0, low_memory=False)
@@ -59,9 +57,11 @@ def create_dic_from_sector_to_emission_content(sector_table,emission_content_tab
 #ne marche pas pour l'instant
 
 #rajoute la colonne Emissions (en t de CO2) à chaque individu référencé
-# emis_cont_fr from inc_based.py
+# emis_cont_fr without direct emissions from inc_based.py
+### emis_cont_tot_fr with direct emissions from inc_based.py
+emis_cont= emis_cont_tot_fr
 Scaling_factor=10**(-6)
-dic_to_emission_content = create_dic_from_sector_to_emission_content(full_insee_table, emis_cont_fr) 
+dic_to_emission_content = create_dic_from_sector_to_emission_content(full_insee_table, emis_cont) 
 full_insee_table['income-based_emissions']= full_insee_table['salary_value'] * full_insee_table['A38'].replace(dic_to_emission_content)*Scaling_factor
 
 #Total des emissions
@@ -70,11 +70,13 @@ Emissions_insee_tot=sum(full_insee_table['income-based_emissions']*full_insee_ta
 print('France emissions from salaries insee: ',Emissions_insee_tot,'Mt de CO2')
 
 #depuis inc_based.py, total income-based emission, MtCO2 
-inc_based_emis_mrio_FR_tot=np.sum(income_based_emis_FR.values)*1e-6
+# income_based_emis_tot_FR vs income_based_emis_FR ( avec emission direct ou non)
+inc_based_emis= income_based_emis_tot_FR
+inc_based_emis_mrio_FR_tot=np.sum(inc_based_emis.values)*1e-6
 print('France total income-based emissions from mrio database: ',inc_based_emis_mrio_FR_tot,'Mt de CO2')
 
 #depuis inc_based.py, labour factor income-based emission, MtCO2 
-inc_based_emis_mrio_FR_lab=np.sum(income_based_emis_FR.xs('Labour', axis=1, level=1, drop_level=False).values)*1e-6
+inc_based_emis_mrio_FR_lab=np.sum(inc_based_emis.xs('Labour', axis=1, level=1, drop_level=False).values)*1e-6
 print('France labour factor income-based emissions from mrio database: ',inc_based_emis_mrio_FR_lab,'Mt de CO2')
 
 #comparaison: moins d'un tiers des Income-Basedemissions de la France seraient attribués aux salaires
@@ -110,7 +112,9 @@ median_emissions=stat.median(full_insee_table['income-based_emissions'])
 decile1_emissions=np.percentile(full_insee_table['income-based_emissions'],10)
 decile9_emissions=np.percentile(full_insee_table['income-based_emissions'],90)
 interdecile_emissions=decile9_emissions/decile1_emissions
-masses_emissions = ratio_of_mass( decile1_salary, decile9_salary, 'income-based_emissions', 'salary_value', full_insee_table)
+masses_emissions_ofemitters = ratio_of_mass( decile1_emissions, decile9_emissions, 'income-based_emissions', 'income-based_emissions', full_insee_table)
+masses_emissions_ofrich = ratio_of_mass( decile1_salary, decile9_salary, 'income-based_emissions', 'salary_value', full_insee_table)
+
 
 #Comparaison
 dispersion=interdecile_emissions>interdecile_salary
