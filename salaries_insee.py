@@ -106,7 +106,15 @@ mean_emis_content_by_class.columns=['mean emission content']
 for i in np.sort(full_insee_table['TRNNETO'].unique()):
     mean_emis_content_by_class['mean emission content'][i] = mean_emission_content(full_insee_table[full_insee_table['TRNNETO']==i])
 mean_emis_content_by_class.loc['Global mean']  =mean_emission_content(full_insee_table)
-    
+# Regression 
+#full_insee_table['salary_value']
+
+# Indice de vunérabilité région
+name_column='REGT_AR'
+vulnerability_index_dic={}
+for reg in np.sort(full_insee_table[name_column].unique()[~np.isnan(full_insee_table[name_column].unique())]):
+    vulnerability_index_dic[reg]= 1e6*(np.sum( full_insee_table[full_insee_table[name_column] ==  reg]['income-based_emissions']) / np.sum( full_insee_table[full_insee_table[name_column] ==  reg]['salary_value']))
+
 #Statistiques Descriptives
 #base salaire
 mean_salary=round(stat.mean(full_insee_table['salary_value']))
