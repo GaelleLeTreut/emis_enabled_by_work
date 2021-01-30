@@ -25,8 +25,6 @@ else:
     dbf_to_csv(data_dir +os.sep + 'salaries15.dbf')
     print('Le fichier salaries15 est maintenant disponible au format csv')
 
-
-
 #Importer base salaires15 INSEE (euro 2015)
 #https://www.insee.fr/fr/statistiques/3536754#dictionnaire
 full_insee_table = pd.read_csv(data_dir + os.sep + 'salaries15.csv',sep=',',index_col=0, low_memory=False)
@@ -110,10 +108,18 @@ mean_emis_content_by_class.loc['Global mean']  =mean_emission_content(full_insee
 #full_insee_table['salary_value']
 
 # Indice de vunérabilité région
+dict_codereg_to_regname= {1:'Guadeloupe',2:'Martinique',3:'Guyane',4:'Réunion',11:'Île-de-France',21:'Champagne-Ardenne',22:'Picardie',23:'Haute-Normandie',24:'Centre',25:'Basse-Normandie',26:'Bourgogne',31:'Nord-Pas-de-Calais',41:'Lorraine',42:'Alsace',43:'Franche-Comté',52:'Pays de la Loire',53:'Bretagne',54:'Poitou-Charentes',72:'Aquitaine',73:'Midi-Pyrénées',74:'Limousin',82:'Rhône-Alpes',83:'Auvergne',91:'Languedoc-Roussillon',93:'Provence-Alpes-Côte d\'Azur',94:'Corse',99:'Etranger et Tom'}
+full_insee_table['reg name']=full_insee_table['REGT_AR'].replace(dict_codereg_to_regname)
+
 name_column='REGT_AR'
 vulnerability_index_dic={}
 for reg in np.sort(full_insee_table[name_column].unique()[~np.isnan(full_insee_table[name_column].unique())]):
     vulnerability_index_dic[reg]= 1e6*(np.sum( full_insee_table[full_insee_table[name_column] ==  reg]['income-based_emissions']) / np.sum( full_insee_table[full_insee_table[name_column] ==  reg]['salary_value']))
+
+reg_emis_cont = pd.DataFrame.from_dict(vulnerability_index_dic, orient='index')
+reg_emis_cont.columns=['emission content']
+reg_emis_cont['code reg']=reg_emis_cont.index
+reg_emis_cont['reg name']=reg_emis_cont['code reg'].replace(dict_codereg_to_regname)
 
 #Statistiques Descriptives
 #base salaire
