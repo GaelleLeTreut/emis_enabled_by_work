@@ -494,3 +494,10 @@ emis_cont_fr_to_save['% direct emissions']=  share_direct_emis['% direct emissio
 emis_cont_fr_to_save['% domestic emissions']=  share_dom_emis['% domestic emissions'].values
 emis_cont_fr_to_save = emis_cont_fr_to_save.drop(['region'], axis=1)
 emis_cont_fr_to_save = emis_cont_fr_to_save.sort_values(by=['emission content'], ascending = False )
+
+top10_table= round(emis_cont_fr_to_save[:10],1).to_latex(index=False)
+least10_table= round(emis_cont_fr_to_save[-11:],1).to_latex(index=False)
+
+print(top10_table)
+
+print(least10_table)
