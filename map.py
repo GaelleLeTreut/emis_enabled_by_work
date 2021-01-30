@@ -58,7 +58,7 @@ deps = gv.Polygons(sf, vdims=['nom','value'])
 ## Variable to plot (update)
 variable = 'value'
 # set the range for the choropleth
-vmin, vmax = 80, 220
+vmin, vmax = sf['value'].min(), sf['value'].max()
 fig, ax = plt.subplots(1, figsize=(10, 6))
 ax.axis('off')
 sf.plot(column=variable, cmap='Blues', linewidth=0.8, ax=ax, edgecolor='0.8')
