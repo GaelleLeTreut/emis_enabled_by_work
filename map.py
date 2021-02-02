@@ -33,9 +33,10 @@ mapname = "France_regions.geojson"
 sf = gdp.read_file(DATA_PATH+mapname)
 
 ## update with emission contents / from salaries_insee.py
-to_map = reg_emis_cont.drop([99, 1,2,3,4], axis=0)['emission content']
-to_map.index= reg_emis_cont.drop([99, 1,2,3,4], axis=0)['reg name']
+metropolitan_reg = reg_emis_cont.query("not(REGT_AR in [1,2,3,4,99,'All'])")
+to_map = metropolitan_reg.set_index('REGT_AR_NAME')['mean emission content']
 to_map_dic = to_map.to_dict()
+#seems to be necessary in Windows only, maybe bypass or use try:
 to_map_dic['Île-de-France'] = to_map_dic.pop('ÃŽle-de-France')
 to_map_dic['Midi-Pyrénées'] = to_map_dic.pop('Midi-PyrÃ©nÃ©es')
 to_map_dic['Franche-Comté'] = to_map_dic.pop('Franche-ComtÃ©')
