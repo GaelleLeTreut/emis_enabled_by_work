@@ -499,5 +499,18 @@ top10_table= round(emis_cont_fr_to_save[:10],1).to_latex(index=False)
 least10_table= round(emis_cont_fr_to_save[-11:],1).to_latex(index=False)
 
 print(top10_table)
-
 print(least10_table)
+
+VA = pd.DataFrame(np.sum(io_orig.value_added.F,axis=0))
+VA.columns=['value added']
+VA['share of VA']= np.nan
+VA.loc[('RoW')]['share of VA'] =100*( VA.loc[('RoW')]/ VA.loc[('RoW')].sum())
+VA.loc[('FR')]['share of VA'] =100*( VA.loc[('FR')]/ VA.loc[('FR')].sum())
+
+print('Min emission content in FR (gCO2/euro of VA):',round(emis_cont_tot_fr['emission content'].min()))
+print('Max emission content in FR (gCO2/euro of VA):',round(emis_cont_tot_fr['emission content'].max()))
+print('mean emission content weighted by VA in FR (gCO2/euro of VA):', round(np.average(emis_cont_tot_fr['emission content'], weights=VA.loc[('FR')]['share of VA'])))
+print('Standard deviation of emission content in FR (gCO2/euro of VA):',round(emis_cont_tot_fr['emission content'].std()))
+
+print('mean emission content weighted by VA in RoW (gCO2/euro of VA):', round(np.average(emis_cont_tot.loc[emis_cont_tot['region']=='RoW']['emission content'], weights=VA.loc[('RoW')]['share of VA'])))
+print('Standard deviation of emission content in RoW (gCO2/euro of VA):', round(emis_cont_tot.loc[emis_cont_tot['region']=='RoW']['emission content'].std()))
