@@ -70,5 +70,5 @@ sm._A = []
 # add the colorbar to the figure
 cbar = fig.colorbar(sm)
 # add title
-plt.title("Emission content of incomes - g/CO2", size=12)
+plt.title("Emission content of incomes - gCO2/euro", size=12)
 plt.savefig(OUTPUTS_PATH+'map_emis_cont_by_reg.jpeg', bbox_inches='tight')
