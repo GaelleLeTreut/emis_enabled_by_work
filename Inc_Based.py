@@ -483,14 +483,21 @@ for r in region_list:
     
 ## table to save
 share_direct_emis = pd.DataFrame(emis_cont_tot_decomp_fr.loc['Direct emis content'].div(emis_cont_tot_fr['emission content'].replace(0, np.nan).values)*100)
+share_direct_emis = share_direct_emis.astype(float).round(1)
 share_direct_emis.columns=['% direct emissions']
 
+share_1stdownstream_emis = pd.DataFrame(emis_cont_tot_decomp_fr.loc['FO emis content'].div(emis_cont_tot_fr['emission content'].replace(0, np.nan).values)*100)
+share_1stdownstream_emis = share_1stdownstream_emis.astype(float).round(1)
+share_1stdownstream_emis.columns=['% downstream at first level']
+
 share_dom_emis = pd.DataFrame(emis_enable_d.loc[emis_enable_d['region']=='FR']['emis content from FR'].div(emis_cont_tot_fr['emission content'].replace(0, np.nan).values)*100)
+share_dom_emis =share_dom_emis.astype(float).round(1)
 share_dom_emis.columns=['% domestic emissions']
 
 emis_cont_fr_to_save = emis_cont_tot_fr.copy()
 emis_cont_fr_to_save.drop('region',axis=1)
 emis_cont_fr_to_save['% direct emissions']=  share_direct_emis['% direct emissions'].values
+emis_cont_fr_to_save['% downstream at first level']=  share_1stdownstream_emis['% downstream at first level'].values
 emis_cont_fr_to_save['% domestic emissions']=  share_dom_emis['% domestic emissions'].values
 emis_cont_fr_to_save = emis_cont_fr_to_save.drop(['region'], axis=1)
 emis_cont_fr_to_save = emis_cont_fr_to_save.sort_values(by=['emission content'], ascending = False )
