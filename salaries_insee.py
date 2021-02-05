@@ -247,5 +247,19 @@ compute_and_print_elasticity(np.array(mean_emis_content_class_only['salary_value
 sex_class = stat_data_generic(['TRNNETO','SEXE'],full_insee_table,mean_emission_content)
 #les femmes ont un contenu en émissions beaucoup plus faibles que les hommes
 
+
+#table for Gaelle
+#building table
+raw_table = stat_data_generic(['TRNNETO','A38','SEXE'],full_insee_table,mean_emission_content) 
+ordered_table = raw_table.pivot(index=['TRNNETO','A38'],columns=['SEXE'],values='pop_mass').reset_index()
+
+# cleaning labels
+ordered_table.columns.name = 'index'
+ordered_table.rename({1:'male_pop',2:'female_pop','All':'total_pop'},axis=1,inplace=True)
+
+#add emission content
+to_merge= raw_table[(raw_table['SEXE']=='All')][['TRNNETO','A38','mean emission content']]
+final_table = pd.merge(ordered_table,to_merge,on=['TRNNETO','A38'],how='left')
+
 mean_emission_content_by_age = stat_data_generic(['AGE'],full_insee_table,mean_emission_content)
 mean_emission_content_by_age[mean_emission_content_by_age['pop_mass']>=1000]
