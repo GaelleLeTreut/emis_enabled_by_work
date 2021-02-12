@@ -328,67 +328,67 @@ check=emis_enable.reset_index(inplace=True)
 ######
 ### Emission content - Histogramme groupé FR vs ROW
 ######
-plt.figure(figsize=(18, 12))
-sns.barplot(x="sector", hue="region", y="emission content", data=emis_cont)
-plt.xlabel("Sector code", size=12)
-plt.ylabel("gCO2/euro", size=12)
-plt.title("Emission content - France vs Rest of World", size=12)
-plt.savefig(OUTPUTS_PATH+'fig_emis_cont_FRvsRoW.jpeg', bbox_inches='tight')
-plt.show()
+# plt.figure(figsize=(18, 12))
+# sns.barplot(x="sector", hue="region", y="emission content", data=emis_cont)
+# plt.xlabel("Sector code", size=12)
+# plt.ylabel("gCO2/euro", size=12)
+# plt.title("Emission content - France vs Rest of World", size=12)
+# plt.savefig(OUTPUTS_PATH+'fig_emis_cont_FRvsRoW.jpeg', bbox_inches='tight')
+# plt.show()
 
 ######
 ### Emission content - Histogramme FRANCE
 ######
 ### Emissions content by sector
-emis_cont_fr= emis_cont.loc[emis_cont['region']=='FR']
-plt.figure(figsize=(18, 12))
-sns.barplot(x="sector", y="emission content", data=emis_cont_fr,palette='deep')
-plt.xlabel("Sector code", size=12)
-plt.ylabel("gCO2/euro", size=12)
-plt.title("Emission content - France", size=12)
-plt.savefig(OUTPUTS_PATH+'fig_emis_cont_FR.jpeg', bbox_inches='tight')
-plt.show()
-plt.close()
+# emis_cont_fr= emis_cont.loc[emis_cont['region']=='FR']
+# plt.figure(figsize=(18, 12))
+# sns.barplot(x="sector", y="emission content", data=emis_cont_fr,palette='deep')
+# plt.xlabel("Sector code", size=12)
+# plt.ylabel("gCO2/euro", size=12)
+# plt.title("Emission content - France", size=12)
+# plt.savefig(OUTPUTS_PATH+'fig_emis_cont_FR.jpeg', bbox_inches='tight')
+# plt.show()
+# plt.close()
 
 
 ### Emissions content = decompostion
-emis_cont_decomp= emis_cont_dir.copy()
-emis_cont_decomp.loc[:,'FO emis content'] = emis_cont_fo['FO emis content']
-emis_cont_decomp.loc[:,'SO emis content'] = emis_cont_so['SO emis content']
-emis_cont_decomp.loc[:,'Rest emis content'] =emis_cont['emission content'] - ( emis_cont_dir['Direct emis content'] + emis_cont_fo['FO emis content'] + emis_cont_so['SO emis content']) 
+# emis_cont_decomp= emis_cont_dir.copy()
+# emis_cont_decomp.loc[:,'FO emis content'] = emis_cont_fo['FO emis content']
+# emis_cont_decomp.loc[:,'SO emis content'] = emis_cont_so['SO emis content']
+# emis_cont_decomp.loc[:,'Rest emis content'] =emis_cont['emission content'] - ( emis_cont_dir['Direct emis content'] + emis_cont_fo['FO emis content'] + emis_cont_so['SO emis content']) 
 
-emis_cont_decomp_fr= emis_cont_decomp.loc[emis_cont_decomp['region']=='FR']
-emis_cont_decomp_fr= emis_cont_decomp_fr.drop(['region'], axis=1)
-emis_cont_decomp_fr = np.transpose(emis_cont_decomp_fr)
-emis_cont_decomp_fr.columns = emis_cont_decomp_fr.loc['sector']
-emis_cont_decomp_fr= emis_cont_decomp_fr.drop(['sector'], axis=0)
+# emis_cont_decomp_fr= emis_cont_decomp.loc[emis_cont_decomp['region']=='FR']
+# emis_cont_decomp_fr= emis_cont_decomp_fr.drop(['region'], axis=1)
+# emis_cont_decomp_fr = np.transpose(emis_cont_decomp_fr)
+# emis_cont_decomp_fr.columns = emis_cont_decomp_fr.loc['sector']
+# emis_cont_decomp_fr= emis_cont_decomp_fr.drop(['sector'], axis=0)
 
-#sns.set()
-emis_cont_decomp_fr.T.plot(kind='bar', stacked=True, figsize=(18, 12))
-plt.xlabel("Sector code", size=12)
-plt.xticks(rotation=0,fontsize=12)
-plt.ylabel("gCO2/euro", size=12)
-plt.title("Emission content decomposition- France", size=12)
-plt.savefig(OUTPUTS_PATH+'fig_emis_cont_decomp_FR.jpeg', bbox_inches='tight')
-plt.show()
+###sns.set()
+# emis_cont_decomp_fr.T.plot(kind='bar', stacked=True, figsize=(18, 12))
+# plt.xlabel("Sector code", size=12)
+# plt.xticks(rotation=0,fontsize=12)
+# plt.ylabel("gCO2/euro", size=12)
+# plt.title("Emission content decomposition- France", size=12)
+# plt.savefig(OUTPUTS_PATH+'fig_emis_cont_decomp_FR.jpeg', bbox_inches='tight')
+# plt.show()
 
 ######
 ### Emission content - Enable emissions
 ######
-for r in region_list:
-    emis_enable_r= emis_enable.loc[emis_cont['region']==r]
-    emis_enable_r= emis_enable_r.drop(['region'], axis=1)
-    emis_enable_r = np.transpose(emis_enable_r)
-    emis_enable_r.columns = emis_enable_r.loc['sector']
-    emis_enable_r= emis_enable_r.drop(['sector'], axis=0)
+# for r in region_list:
+#     emis_enable_r= emis_enable.loc[emis_cont['region']==r]
+#     emis_enable_r= emis_enable_r.drop(['region'], axis=1)
+#     emis_enable_r = np.transpose(emis_enable_r)
+#     emis_enable_r.columns = emis_enable_r.loc['sector']
+#     emis_enable_r= emis_enable_r.drop(['sector'], axis=0)
 
-    emis_enable_r.T.plot(kind='bar', stacked=True, figsize=(18, 12))
-    plt.xlabel("Sector code", size=12)
-    plt.xticks(rotation=0,fontsize=12)
-    plt.ylabel("gCO2/euro", size=12)
-    plt.title("Enabled emission decomposition - "+r, size=12)
-    plt.savefig(OUTPUTS_PATH+'fig_emis_cont_enabled_'+r+'.jpeg', bbox_inches='tight')
-    plt.show()
+#     emis_enable_r.T.plot(kind='bar', stacked=True, figsize=(18, 12))
+#     plt.xlabel("Sector code", size=12)
+#     plt.xticks(rotation=0,fontsize=12)
+#     plt.ylabel("gCO2/euro", size=12)
+#     plt.title("Enabled emission decomposition - "+r, size=12)
+#     plt.savefig(OUTPUTS_PATH+'fig_emis_cont_enabled_'+r+'.jpeg', bbox_inches='tight')
+#     plt.show()
 
 ##########################
 ###### PLOTS - WITH DIRECT EMISSIONS
