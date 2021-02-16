@@ -11,11 +11,25 @@ import scipy.stats as st
 import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
+import utils as ut
 from dbf_into_csv import *
 from sklearn.linear_model import LinearRegression
 
 data_dir = 'data'
 output_dir = 'outputs'
+
+this_file = 'salaries_insee.py'
+
+##########################
+###### Paths 
+##########################
+output_folder='outputs'
+#create output_folder if not exist
+if not os.path.exists(output_folder):
+    os.makedirs(output_folder)
+    print('Creating ' + output_folder + ' to store outputs')
+
+OUTPUTS_PATH = output_folder + os.sep
 
 ###############
 # retrieving data
@@ -29,10 +43,10 @@ emis_cont = pd.read_csv( output_dir + os.sep + 'emission_content_france.csv', se
 #convertir le fichier dBase de l'Insee en csv s'il ne l'est pas déjà
 #bien vérifier la présence du module dbf_to_csv.py dans le répertoire
 if os.path.isfile(data_dir +os.sep + 'salaries15.csv')==True:
-    print('le fichier salaries est déjà disponible au format csv')
+    print('file salaries15 is already available in csv format')
 else:
     dbf_to_csv(data_dir +os.sep + 'salaries15.dbf')
-    print('Le fichier salaries15 est maintenant disponible au format csv')
+    print('file salaries15 is now available in csv format')
 
 #Importer base salaires15 INSEE (euro 2015)
 #https://www.insee.fr/fr/statistiques/3536754#dictionnaire
@@ -151,9 +165,66 @@ st_chi2, st_p, st_dof, st_exp = st.chi2_contingency(c.iloc[:-1,:-1])
 #sns.heatmap(table.iloc[:-1,:-1])#,annot=c.iloc[:-1,:-1])
 #plt.show()
 
+###################
+# Descriptive statistics
+###################
 
+#not used at the moment
 
-# Mean emission by wage class
+##of wages
+#mean_salary=round(stat.mean(full_insee_table['salary_value']))
+#variance_salary=stat.variance(full_insee_table['salary_value'])
+#median_salary=stat.median(full_insee_table['salary_value'])
+#decile1_salary=np.percentile(full_insee_table['salary_value'],10)
+#decile9_salary=np.percentile(full_insee_table['salary_value'],90)
+#interdecile_salary=decile9_salary/decile1_salary
+#masses_salary = ratio_of_mass( decile1_salary, decile9_salary, 'salary_value', 'salary_value', full_insee_table)
+#
+##of emissions
+#mean_emissions=stat.mean(full_insee_table['income-based_emissions'])
+#variance_emissions=stat.variance(full_insee_table['income-based_emissions'])
+#median_emissions=stat.median(full_insee_table['income-based_emissions'])
+#decile1_emissions=np.percentile(full_insee_table['income-based_emissions'],10)
+#decile9_emissions=np.percentile(full_insee_table['income-based_emissions'],90)
+#interdecile_emissions=decile9_emissions/decile1_emissions
+#masses_emissions_ofemitters = ratio_of_mass( decile1_emissions, decile9_emissions, 'income-based_emissions', 'income-based_emissions', full_insee_table)
+#masses_emissions_ofrich = ratio_of_mass( decile1_salary, decile9_salary, 'income-based_emissions', 'salary_value', full_insee_table)
+
+##variance of income-based emissions compared with product of emission content and wages in case of independence
+#mean_content = stat.mean(full_insee_table['emission_content'])
+#variance_content = stat.variance(full_insee_table['emission_content'])
+#test= (variance_emissions - (Scaling_factor**2) *(variance_content * variance_salary + variance_salary*(mean_content**2)+variance_content*(mean_salary**2)))/variance_emissions
+
+#comparison of variance of log of income-based emissions with sums of variance of log of emission content and of log of wages
+full_insee_table['log_income-based_emissions'] = np.log(full_insee_table['income-based_emissions'])
+full_insee_table['log_emission_content'] = np.log(full_insee_table['emission_content'])
+full_insee_table['log_salary_value'] = np.log(full_insee_table['salary_value'])
+
+matrix = np.cov(np.transpose(np.array(full_insee_table[['log_emission_content','log_salary_value']])))
+print('decomposition of variance of log of emission-based')
+print("{:.2f}".format(np.sum(matrix)) + " = " + "{:.2f}".format(matrix[0,0]) +" + " + "{:.2f}".format(matrix[1,1]) + " + 2*" +"{:.2f}".format(matrix[0,1]))
+relative_matrix = matrix /np.sum(matrix)
+print('decomposition of variance of log of emission-based in relative terms')
+print("{:.2f}".format(np.sum(relative_matrix)) + " = " + "{:.2f}".format(relative_matrix[0,0]) +" + " + "{:.2f}".format(relative_matrix[1,1]) + " + 2*" +"{:.2f}".format(relative_matrix[0,1]))
+print('variability of emissions content is ' + "{:.2f}".format(matrix[0,0]/matrix[1,1]) + ' times that of wages')
+
+#################
+# Lorenz and concentration curves
+#################
+
+#construct the data for Lorenz curves from grouping by wage classes and branches (because that is all what matters)
+full_insee_table['pop_mass']=1
+pop_mass_per_sector_x_salary=full_insee_table.groupby(['TRNNETO','A38']).size().reset_index(name='pop_mass')
+pop_mass_per_sector_x_salary['emission_content'] = pop_mass_per_sector_x_salary['A38'].replace(dic_to_emission_content)
+pop_mass_per_sector_x_salary['salary_value'] = pop_mass_per_sector_x_salary['TRNNETO'].replace(dic_TRNNETO_to_salary)
+pop_mass_per_sector_x_salary['salary_mass'] = pop_mass_per_sector_x_salary['salary_value'] * pop_mass_per_sector_x_salary['pop_mass']
+pop_mass_per_sector_x_salary['emissions_mass'] = pop_mass_per_sector_x_salary['salary_mass'] * pop_mass_per_sector_x_salary['emission_content']
+pop_mass_per_sector_x_salary['emissions_capita'] = pop_mass_per_sector_x_salary['salary_value'] * pop_mass_per_sector_x_salary['emission_content']
+
+ut.make_Lorenz_and_concentration_curves(np.transpose(np.array(pop_mass_per_sector_x_salary[['pop_mass','salary_value', 'emissions_capita']])),{'pop_mass':0,'income':1,'emissions':2},OUTPUTS_PATH + 'Lorenz_curve_French_employee','% data for Lorenz and concentration curves for French employees \n% file automatically created from ' + this_file )
+
+## PLOT
+sns.set_context('paper', font_scale=0.9)
 
 mean_emis_content_by_class = ut.stat_data_generic(['TRNNETO'],full_insee_table, ut.mean_emission_content)
 # Regression 
@@ -162,53 +233,9 @@ mean_emis_content_by_class = ut.stat_data_generic(['TRNNETO'],full_insee_table, 
 # Indice de vunérabilité région
 dict_codereg_to_regname= {1:'Guadeloupe',2:'Martinique',3:'Guyane',4:'Réunion',11:'Île-de-France',21:'Champagne-Ardenne',22:'Picardie',23:'Haute-Normandie',24:'Centre',25:'Basse-Normandie',26:'Bourgogne',31:'Nord-Pas-de-Calais',41:'Lorraine',42:'Alsace',43:'Franche-Comté',52:'Pays de la Loire',53:'Bretagne',54:'Poitou-Charentes',72:'Aquitaine',73:'Midi-Pyrénées',74:'Limousin',82:'Rhône-Alpes',83:'Auvergne',91:'Languedoc-Roussillon',93:'Provence-Alpes-Côte d\'Azur',94:'Corse',99:'Etranger et Tom'}
 
-reg_emis_cont = stat_data_generic(['REGT_AR'], full_insee_table.dropna(subset=['REGT_AR']), mean_emission_content)
+reg_emis_cont = ut.stat_data_generic(['REGT_AR'], full_insee_table.dropna(subset=['REGT_AR']), ut.mean_emission_content)
 reg_emis_cont['REGT_AR_NAME']=reg_emis_cont['REGT_AR'].replace(dict_codereg_to_regname)
 
-#Statistiques Descriptives
-#base salaire
-mean_salary=round(stat.mean(full_insee_table['salary_value']))
-variance_salary=stat.variance(full_insee_table['salary_value'])
-median_salary=stat.median(full_insee_table['salary_value'])
-decile1_salary=np.percentile(full_insee_table['salary_value'],10)
-decile9_salary=np.percentile(full_insee_table['salary_value'],90)
-interdecile_salary=decile9_salary/decile1_salary
-masses_salary = ratio_of_mass( decile1_salary, decile9_salary, 'salary_value', 'salary_value', full_insee_table)
-
-#France Emissions
-mean_emissions=stat.mean(full_insee_table['income-based_emissions'])
-variance_emissions=stat.variance(full_insee_table['income-based_emissions'])
-median_emissions=stat.median(full_insee_table['income-based_emissions'])
-decile1_emissions=np.percentile(full_insee_table['income-based_emissions'],10)
-decile9_emissions=np.percentile(full_insee_table['income-based_emissions'],90)
-interdecile_emissions=decile9_emissions/decile1_emissions
-masses_emissions_ofemitters = ratio_of_mass( decile1_emissions, decile9_emissions, 'income-based_emissions', 'income-based_emissions', full_insee_table)
-masses_emissions_ofrich = ratio_of_mass( decile1_salary, decile9_salary, 'income-based_emissions', 'salary_value', full_insee_table)
-
-#comparison of product
-mean_content = stat.mean(full_insee_table['emission_content'])
-variance_content = stat.variance(full_insee_table['emission_content'])
-test= (variance_emissions - (Scaling_factor**2) *(variance_content * variance_salary + variance_salary*(mean_content**2)+variance_content*(mean_salary**2)))/variance_emissions
-
-#comparison of variance with sums of log
-full_insee_table['log_income-based_emissions'] = np.log(full_insee_table['income-based_emissions'])
-full_insee_table['log_emission_content'] = np.log(full_insee_table['emission_content'])
-full_insee_table['log_salary_value'] = np.log(full_insee_table['salary_value'])
-
-variance_log_emissions = stat.variance(full_insee_table['log_income-based_emissions'])
-variance_log_content = stat.variance(full_insee_table['log_emission_content'])
-variance_log_salary_value = stat.variance(full_insee_table['log_salary_value'])
-test2=(variance_log_emissions - variance_log_content - variance_log_salary_value)/variance_log_emissions
-
-#Comparaison
-dispersion=interdecile_emissions>interdecile_salary
-if dispersion:
-    print("Il y a plus d'inégalités d'émissions que de salaires")
-else:
-    print("Il y a plus d'inégalités de salaires que d'émissions")
-    
-## PLOT
-sns.set_context('paper', font_scale=0.9)
 
 #plot for mean emission content by wage classes
 plt.figure(figsize=(18, 12))
@@ -227,47 +254,6 @@ plt.ylabel("Vulnerability index (gCO2/euro)", size=12)
 plt.title("Vulnerability index by regions", size=12)
 plt.savefig(OUTPUTS_PATH+'fig_mean_emis_cont_by_region.jpeg', bbox_inches='tight')
 
-full_insee_table['pop_mass']=1
-
-def make_Lorenz_and_concentration_curves(table,dic_index,pdffile):
-    income_index = dic_index['income']
-    emissions_index = dic_index['emissions']
-    pop_index =  dic_index['pop_mass']
-
-    #sort table by emissions
-    table_sorted_by_emissions = table[:,table[emissions_index,:].argsort()]
-    pop_cum_by_emissions = np.cumsum(table_sorted_by_emissions[pop_index,:])/np.sum(table_sorted_by_emissions[pop_index,:])
-    emissions_cum_by_emissions = np.cumsum(table_sorted_by_emissions[emissions_index,:]*table_sorted_by_emissions[pop_index,:])/np.sum(table_sorted_by_emissions[emissions_index,:]*table_sorted_by_emissions[pop_index,:])
-
-    #sort table by income (after having sorted by emissions, to have smoother concentration curve)
-    table_sorted_by_income = table_sorted_by_emissions[:,table_sorted_by_emissions[income_index,:].argsort(kind='mergesort')]#to preserve first sorting
-    pop_cum_by_income = np.cumsum(table_sorted_by_income[pop_index,:])/np.sum(table_sorted_by_income[pop_index,:])
-    income_cum_by_income = np.cumsum(table_sorted_by_income[income_index, :]*table_sorted_by_income[pop_index,:])/np.sum(table_sorted_by_income[income_index,:]*table_sorted_by_income[pop_index,:])
-    #reconstituted_cum = np.cumsum(table_sorted_by_income[0,:]**0.34)/np.sum(table_sorted_by_income[0,:]**0.34)
-    emissions_cum_by_income = np.cumsum(table_sorted_by_income[emissions_index,:]*table_sorted_by_income[pop_index,:])/np.sum(table_sorted_by_income[emissions_index,:]*table_sorted_by_income[pop_index,:])
-    
-    fig = plt.figure()
-    ax = fig.add_subplot(111)
-    plt.plot([0,1],[0,1],'k:',linewidth=1)
-    plt.plot(pop_cum_by_income, emissions_cum_by_income,label='concentration curve of income-based emissions')
-    plt.plot(pop_cum_by_emissions, emissions_cum_by_emissions,label='Lorenz curve for income-based emissions')
-    plt.plot(pop_cum_by_income, income_cum_by_income,label='Lorenz curve for income')
-    plt.xlabel('Cumulative share of French wage earners')
-    plt.ylabel('Cumulative share of income or income-based emissions')
-    plt.axis([0,1,0,1])
-    plt.legend(loc='upper left')
-    ax.set_aspect('equal', adjustable='box')
-    plt.savefig(pdffile,bbox_inches='tight')
-    plt.close()
-
-
-
-pop_mass_per_sector_x_salary=full_insee_table.groupby(['TRNNETO','A38']).size().reset_index(name='pop_mass')
-pop_mass_per_sector_x_salary['emission_content'] = pop_mass_per_sector_x_salary['A38'].replace(dic_to_emission_content)
-pop_mass_per_sector_x_salary['salary_value'] = pop_mass_per_sector_x_salary['TRNNETO'].replace(dic_TRNNETO_to_salary)
-pop_mass_per_sector_x_salary['salary_mass'] = pop_mass_per_sector_x_salary['salary_value'] * pop_mass_per_sector_x_salary['pop_mass']
-pop_mass_per_sector_x_salary['emissions_mass'] = pop_mass_per_sector_x_salary['salary_mass'] * pop_mass_per_sector_x_salary['emission_content']
-pop_mass_per_sector_x_salary['emissions_capita'] = pop_mass_per_sector_x_salary['salary_value'] * pop_mass_per_sector_x_salary['emission_content']
 
 fig = plt.figure()
 ax = fig.add_subplot(111)
@@ -277,7 +263,6 @@ plt.scatter(pop_mass_per_sector_x_salary['salary_value'], pop_mass_per_sector_x_
 plt.savefig(OUTPUTS_PATH + 'wages_per_sector.pdf',bbox_inches='tight')
 plt.close()
 
-make_Lorenz_and_concentration_curves(np.transpose(np.array(pop_mass_per_sector_x_salary[['pop_mass','salary_value', 'emissions_capita']])),{'pop_mass':0,'income':1,'emissions':2},OUTPUTS_PATH + 'Lorenz_curve_from_aggregate.pdf')
 
 
 #regression 
@@ -301,7 +286,7 @@ compute_and_print_elasticity(np.array(mean_emis_content_class_only['salary_value
 
 
 #statistiques by sex and class
-sex_class = stat_data_generic(['TRNNETO','SEXE'],full_insee_table,mean_emission_content)
+sex_class = ut.stat_data_generic(['TRNNETO','SEXE'],full_insee_table, ut.mean_emission_content)
 sex_class['SEXE'] = sex_class['SEXE'].replace(2, 'Female')
 sex_class['SEXE'] = sex_class['SEXE'].replace(1, 'Male')
 #les femmes ont un contenu en émissions beaucoup plus faibles que les hommes
@@ -317,14 +302,14 @@ plt.show()
 sex_class.drop(sex_class.loc[sex_class['SEXE']=='All'].index, inplace=True)
 sex_class.drop(sex_class.loc[sex_class['TRNNETO']=='All'].index, inplace=True)
 
-# plt.figure(figsize=(18, 12))
-# sns.kdeplot(data=sex_class, x="mean emission content", hue="SEXE", multiple="stack")
-# plt.show()
+plt.figure(figsize=(18, 12))
+sns.kdeplot(data=sex_class, x="mean emission content", hue="SEXE", multiple="stack")
+plt.show()
 
 
 #Table for Gaelle
 #building table
-raw_table = stat_data_generic(['TRNNETO','A38','SEXE'],full_insee_table,mean_emission_content) 
+raw_table = ut.stat_data_generic(['TRNNETO','A38','SEXE'],full_insee_table, ut.mean_emission_content) 
 ordered_table = raw_table.pivot_table(index=['TRNNETO','A38'],columns=['SEXE'],values='pop_mass').reset_index()
 # cleaning labels
 ordered_table.columns.name = 'index'
@@ -340,7 +325,7 @@ Mean_emis_branch.drop('A38', axis=1,inplace=True)
 
 #sur chaque ligne, pour une population caractérisée par sa classe salariale et son sexe, on a la liste des proportions employées dans les différentes secteurs
 #full_insee_table.drop(full_insee_table.loc[full_insee_table'A38']='CD')
-relative_pop = stat_data_generic(['TRNNETO','SEXE'],full_insee_table, lambda x: proportion_generic(x,'A38'))
+relative_pop = ut.stat_data_generic(['TRNNETO','SEXE'],full_insee_table, lambda x: ut.proportion_generic(x,'A38'))
 relative_pop = relative_pop.fillna(0)
 relative_pop['SEXE'] = relative_pop['SEXE'].replace(2, 'Female')
 relative_pop['SEXE'] = relative_pop['SEXE'].replace(1, 'Male')
@@ -498,42 +483,3 @@ relative_pop_reg = relative_pop_reg.fillna(0)
 relative_pop_reg.set_index('REGT_AR',drop=True, inplace=True)
 relative_pop_reg.columns.names=['A38']
 
-table_relative_pop_reg  = pd.DataFrame(relative_pop_reg.stack())
-table_relative_pop_reg.columns=['Relative pop by branch']
-table_relative_pop_reg['mean emission content']=None
-table_relative_pop_reg.index = table_relative_pop_reg.index.swaplevel(0, 1)
-table_relative_pop_reg.sort_index(level=[0,1], axis=0, inplace=True)
-table_relative_pop_reg.reset_index(inplace=True)
-# boucle sur branch -fill table with mean emission content values
-for r in Mean_emis_branch.drop('All').index.unique():
-     table_relative_pop_reg.loc[table_relative_pop_reg['A38']==r,'mean emission content'] = np.repeat(Mean_emis_branch.loc[[r]].values, len(table_relative_pop_reg.loc[table_relative_pop_reg['A38']==r,'mean emission content']))
-# remove Graph REGT_AR = all
-table_relative_pop_reg.drop(table_relative_pop_reg.loc[table_relative_pop_reg['REGT_AR']=='All'].index, inplace=True)
-# Rename regions
-table_relative_pop_reg['REGT_AR']=table_relative_pop_reg['REGT_AR'].replace(dict_codereg_to_regname)
-
-## one plot all regions
-# fig, ax1 = plt.subplots(figsize=(18, 12)) # initializes figure and plots
-# f1 =sns.barplot(x="A38", hue="REGT_AR", y="Relative pop by branch", data=table_relative_pop_reg.sort_values(by='mean emission content'), ax = ax1) # plots the 
-# plt.xlabel("branches", size=12)
-# plt.ylabel("Relative pop by branch", size=12)
-# plt.title("repartition of pop by region", size=12)
-# plt.show()
-
-## Plots for all region
-for r in list(table_relative_pop_reg['REGT_AR'].unique()):
-    region_r = table_relative_pop_reg.loc[table_relative_pop_reg['REGT_AR']==r,:]
-    region_r_raw= region_r.drop('REGT_AR',axis=1).sort_values(by='mean emission content')
-
-    fig, ax1 = plt.subplots(figsize=(18, 12)) # initializes figure and plots
-    ax2 = ax1.twinx() # applies twinx to ax2, which is the second y axis. 
-    f =sns.barplot(x='A38', y="Relative pop by branch", data=region_r_raw, ax = ax1) # plots the first set of data, and sets it to ax1. 
-    sns.scatterplot(x ='A38', y ='mean emission content', data=region_r_raw, marker='o', ax = ax2, color="firebrick", s=80) # plots the second set, and sets to ax2. 
-    # these lines add the annotations for the plot. 
-    ax1.set_xlabel('branches', size=14)
-    ax1.set_ylabel('population share (%)', size=14)
-    ax2.set_ylabel('emission content in gCO2/euro', size=14)
-    plt.title("Region:"+str(r), size=14)
-    plt.show()
-    
-# reg_emis_cont = reg_emis_cont.sort_values(by=['mean emission content'], ascending = False )
