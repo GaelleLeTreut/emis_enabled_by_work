@@ -7,6 +7,7 @@ Ceci est un script temporaire.
 import os
 import pandas as pd
 import statistics as stat
+import scipy.stats as st
 import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
@@ -14,13 +15,18 @@ from dbf_into_csv import *
 from sklearn.linear_model import LinearRegression
 
 data_dir = 'data'
+output_dir = 'outputs'
 
-exec(open("Inc_Based.py").read())
+###############
+# retrieving data
+###############
 
-#convertir le fichier dbf de l'insee en csv pour le traiter avec pandas
-#faire attention de bien disposer du module dans le répertoire
 
-#Ne convertir le fichier dBase en csv que s'il ne l'est pas déjà
+#computed by Inc_Based.py
+emis_cont = pd.read_csv( output_dir + os.sep + 'emission_content_france.csv', sep=';', index_col=0, comment='#')
+
+
+#convertir le fichier dBase de l'Insee en csv s'il ne l'est pas déjà
 #bien vérifier la présence du module dbf_to_csv.py dans le répertoire
 if os.path.isfile(data_dir +os.sep + 'salaries15.csv')==True:
     print('le fichier salaries est déjà disponible au format csv')
@@ -33,8 +39,37 @@ else:
 full_insee_table = pd.read_csv(data_dir + os.sep + 'salaries15.csv',sep=',', low_memory=False)
 full_insee_table = full_insee_table.dropna(subset=['A38'])
 
-dic_TRNNETO_to_salary = {0 : stat.mean([0,200]),1 : stat.mean([200,500]),2 : stat.mean([500,1000]),3 : stat.mean([1000,1500]),4 : stat.mean([1500,2000]),5 : stat.mean([2000,3000]),6 : stat.mean([3000,4000]),7 : stat.mean([4000,6000]),8 : stat.mean([6000,8000]),9 : stat.mean([8000,10000]),10 : stat.mean([10000,12000]), 11 : stat.mean([12000,14000]),12 : stat.mean([14000,16000]), 13 : stat.mean([16000,18000]), 14 : stat.mean([18000,20000]), 15 : stat.mean([20000,22000]), 16 : stat.mean([22000,24000]), 17 : stat.mean([24000,26000]), 18 : stat.mean([26000,28000]),19 : stat.mean([28000,30000]),20 : stat.mean([30000,35000]), 21 : stat.mean([35000,40000]), 22 : stat.mean([40000,50000]),23 : 60000 }
+#############
+# adding field of mean salary
+#############
+
+#dictionary: wage class -> mean salary value
+#no value for the highest wage class at the moment
+dic_TRNNETO_to_salary = {0 : stat.mean([0,200]),1 : stat.mean([200,500]),2 : stat.mean([500,1000]),3 : stat.mean([1000,1500]),4 : stat.mean([1500,2000]),5 : stat.mean([2000,3000]),6 : stat.mean([3000,4000]),7 : stat.mean([4000,6000]),8 : stat.mean([6000,8000]),9 : stat.mean([8000,10000]),10 : stat.mean([10000,12000]), 11 : stat.mean([12000,14000]),12 : stat.mean([14000,16000]), 13 : stat.mean([16000,18000]), 14 : stat.mean([18000,20000]), 15 : stat.mean([20000,22000]), 16 : stat.mean([22000,24000]), 17 : stat.mean([24000,26000]), 18 : stat.mean([26000,28000]),19 : stat.mean([28000,30000]),20 : stat.mean([30000,35000]), 21 : stat.mean([35000,40000]), 22 : stat.mean([40000,50000])}
+
+#check whether the tail of the distribution of wages follow the Pareto law
+class_effectif = full_insee_table.groupby('TRNNETO').apply(len)
+#log of survival rate
+y = np.log(np.cumsum(class_effectif[::-1])[::-1]/np.sum(class_effectif))
+#log of minimum of class
+x = np.log(np.array([100,200,500,1000,1500,2000,3000,4000,6000,8000,10000,12000,14000,16000,18000,20000,22000,24000,26000,28000,30000,35000,40000,50000]))
+#plot to check the linearity at the tail
+#plt.scatter(x[-8:],y[-8:])
+#plt.show()
+
+#get the alpha using only two last classes
+alpha = LinearRegression().fit(x[-2:].reshape(-1,1), y[-2:]).coef_
+
+#Pareto interpolation of mean of last class
+dic_TRNNETO_to_salary[23]= alpha/(alpha-1)*50000
+
+#add field to store imputed wage
 full_insee_table['salary_value']=full_insee_table['TRNNETO'].replace(dic_TRNNETO_to_salary)
+
+
+#############
+# adding fields of emission content and income-based emissions
+#############
 
 insee_classification_to_passage_classification={"AZ":"AZ","BZ":"BZ","CA":"CA","CB":"CB","CC":"CC","CD":"CD","CE":"CE_CF","CF":"CE_CF","CG":"CG","CH":"CH","CI":"CI","CJ":"CJ","CK":"CK","CL":"CL","CM":"CM","DZ":"DZ","EZ":"EZ","FZ":"FZ","GZ":"GZ","HZ":"HZ","IZ":"IZ","JA":"JA","JB":"JB","JC":"JC","KZ":"KZ","LZ":"LZ","MA":"MA_MC","MB":"MB","MC":"MA_MC","NZ":"NZ","OZ":"OZ","PZ":"PZ","QA":"QA_QB","QB":"QA_QB","RZ":"RZ","SZ":"SZ","TZ":"TZ","UZ":"UZ"}
 
@@ -55,83 +90,72 @@ def create_dic_from_sector_to_emission_content(sector_table,emission_content_tab
             dic_to_emission_content[x]= np.nan
     return dic_to_emission_content
 
-#rajoute la colonne Emissions (en t de CO2) à chaque individu référencé
-# emis_cont_fr without direct emissions from inc_based.py
-### emis_cont_tot_fr with direct emissions from inc_based.py
-emis_cont= emis_cont_tot_fr
-Scaling_factor=10**(-6)
+#create dictionary of emission content and add emission content of branches for each observation
 dic_to_emission_content = create_dic_from_sector_to_emission_content(full_insee_table, emis_cont) 
 full_insee_table['emission_content'] = full_insee_table['A38'].replace(dic_to_emission_content)
+
+#add income-based emissions for each observation
+#Scaling factor to convert emissions in MtCO2 to tCO2
+Scaling_factor=10**(-6)
 full_insee_table['income-based_emissions'] = full_insee_table['salary_value'] * full_insee_table['emission_content'] * Scaling_factor
 
-#Total des emissions
-#depuis la base des salaires,  MtCO2 
-Emissions_insee_tot=sum(full_insee_table['income-based_emissions']*full_insee_table['POND'])*1e-6
-print('France emissions from salaries insee: ',Emissions_insee_tot,'Mt de CO2')
 
-#depuis inc_based.py, total income-based emission, MtCO2 
-# income_based_emis_tot_FR vs income_based_emis_FR ( avec emission direct ou non)
-inc_based_emis= income_based_emis_tot_FR
-inc_based_emis_mrio_FR_tot=np.sum(inc_based_emis.values)*1e-6
-print('France total income-based emissions from mrio database: ',inc_based_emis_mrio_FR_tot,'Mt de CO2')
+#########
+# comparison of totals (commented at this stage)
+#########
 
-#depuis inc_based.py, labour factor income-based emission, MtCO2 
-inc_based_emis_mrio_FR_lab=np.sum(inc_based_emis.xs('Labour', axis=1, level=1, drop_level=False).values)*1e-6
-print('France labour factor income-based emissions from mrio database: ',inc_based_emis_mrio_FR_lab,'Mt de CO2')
+##Total des emissions
+##depuis la base des salaires,  MtCO2 
+#Emissions_insee_tot=sum(full_insee_table['income-based_emissions']*full_insee_table['POND'])*1e-6
+#print('France emissions from salaries insee: ',Emissions_insee_tot,'Mt de CO2')
+#
+##depuis inc_based.py, total income-based emission, MtCO2 
+## income_based_emis_tot_FR vs income_based_emis_FR ( avec emission direct ou non)
+#inc_based_emis= income_based_emis_tot_FR
+#inc_based_emis_mrio_FR_tot=np.sum(inc_based_emis.values)*1e-6
+#print('France total income-based emissions from mrio database: ',inc_based_emis_mrio_FR_tot,'Mt de CO2')
+#
+##depuis inc_based.py, labour factor income-based emission, MtCO2 
+#inc_based_emis_mrio_FR_lab=np.sum(inc_based_emis.xs('Labour', axis=1, level=1, drop_level=False).values)*1e-6
+#print('France labour factor income-based emissions from mrio database: ',inc_based_emis_mrio_FR_lab,'Mt de CO2')
+#
+##comparaison: moins d'un tiers des Income-Basedemissions de la France seraient attribués aux salaires
+#comparaison=Emissions_insee_tot/inc_based_emis_mrio_FR_tot
+#print("Insee/Mrio income-based emissions ratio:",comparaison)
+#print("Insee/Mrio 'labour'based emissions ratio:",Emissions_insee_tot/inc_based_emis_mrio_FR_lab)
 
-#comparaison: moins d'un tiers des Income-Basedemissions de la France seraient attribués aux salaires
-comparaison=Emissions_insee_tot/inc_based_emis_mrio_FR_tot
-print("Insee/Mrio income-based emissions ratio:",comparaison)
-print("Insee/Mrio 'labour'based emissions ratio:",Emissions_insee_tot/inc_based_emis_mrio_FR_lab)
+#######################
+# statistical test of independence between branches and wage classes
+#######################
+
+#build the frequency matrix if independent
+X='A38'
+Y='TRNNETO'
+cont = full_insee_table[[X,Y]].pivot_table(index=X,columns=Y,aggfunc=len,margins=True,margins_name="Total")
+c = cont.fillna(0)
+#chi-squared test of independence
+# do not include margins in contingency matrix, otherwise the dof are not accurate
+st_chi2, st_p, st_dof, st_exp = st.chi2_contingency(c.iloc[:-1,:-1])
+
+##chi2 by hand
+##compute the contingency matrix in case of independence
+#tx = cont.loc[:,["Total"]]
+#ty = cont.loc[["Total"],:]
+#n = len(full_insee_table)
+#indep = tx.dot(ty) / n
+##compute xi2 by hand, ok to include margins, as they are zero here
+#measure = (c-indep)**2/indep
+#xi_n = measure.sum().sum() #this is the same as st_chi2
+##picture the matrix of gap
+#table = measure/xi_n
+#sns.heatmap(table.iloc[:-1,:-1])#,annot=c.iloc[:-1,:-1])
+#plt.show()
 
 
-def ratio_of_mass(lower_bound, higher_bound, label_to_sum, label_of_bound, data):
-    low_mass = np.sum( data[data[label_of_bound]<=lower_bound][label_to_sum])
-    high_mass = np.sum( data[data[label_of_bound]>higher_bound][label_to_sum])
-    return high_mass / low_mass
-    
-
-def mean_emission_content(table):
-   """
-   compute the mean emission content (weighted by value-added (here wages)
-   """
-   mean = np.sum(table['emission_content'] * table['salary_value'] )/ np.sum(table['salary_value'])
-   return pd.Series([mean,len(table)],index=['mean emission content','pop_mass'])
-
-def proportion_generic(x, category):
-    """
-    Return proportion of each modality of a category
-
-    DataFrame, string -> Series
-    compute the proportion (in percentage) of each modality of the category (category) of DataFrame x (with weigth given by weight_label)
-    """
-    def fun(modality, x):
-        #return pd.Series({'proportion_of_'+str(modality)+'_in_'+category: 100 * len(x[x[category] == modality]) /len(x)})
-        return pd.Series({str(modality): 100 * len(x[x[category] == modality]) /len(x)})
-    return apply_over_labels( fun, sorted(x[category].unique()), x )
-
-def apply_over_labels(fun,list_of_label, *args):
-    """apply function for each label"""
-    d=pd.Series([])
-    for l in list_of_label:
-        d = d.append( fun(l, *args) )
-    return d
-
-def stat_data_generic(list_of_label, x, fun):
-    if len(list_of_label)==0:
-        a=fun(x)
-        return pd.DataFrame([a.values],columns=a.index)
-    else:
-        label = list_of_label[0]
-        x_extracted_lab = x.groupby([label]).apply(lambda y: stat_data_generic(list_of_label[1:], y, fun)).reset_index().drop('level_1',axis=1)
-        x_extracted_all = stat_data_generic(list_of_label[1:],x,fun)
-        x_extracted_all[label] = 'All'
-        x_extracted = pd.concat([x_extracted_lab,x_extracted_all], sort=False,ignore_index=True)
-        return x_extracted
 
 # Mean emission by wage class
 
-mean_emis_content_by_class = stat_data_generic(['TRNNETO'],full_insee_table,mean_emission_content)
+mean_emis_content_by_class = ut.stat_data_generic(['TRNNETO'],full_insee_table, ut.mean_emission_content)
 # Regression 
 #full_insee_table['salary_value']
 
@@ -144,7 +168,7 @@ reg_emis_cont['REGT_AR_NAME']=reg_emis_cont['REGT_AR'].replace(dict_codereg_to_r
 #Statistiques Descriptives
 #base salaire
 mean_salary=round(stat.mean(full_insee_table['salary_value']))
-stdev_salary=stat.stdev(full_insee_table['salary_value'])
+variance_salary=stat.variance(full_insee_table['salary_value'])
 median_salary=stat.median(full_insee_table['salary_value'])
 decile1_salary=np.percentile(full_insee_table['salary_value'],10)
 decile9_salary=np.percentile(full_insee_table['salary_value'],90)
@@ -153,7 +177,7 @@ masses_salary = ratio_of_mass( decile1_salary, decile9_salary, 'salary_value', '
 
 #France Emissions
 mean_emissions=stat.mean(full_insee_table['income-based_emissions'])
-stdev_emissions=stat.stdev(full_insee_table['income-based_emissions'])
+variance_emissions=stat.variance(full_insee_table['income-based_emissions'])
 median_emissions=stat.median(full_insee_table['income-based_emissions'])
 decile1_emissions=np.percentile(full_insee_table['income-based_emissions'],10)
 decile9_emissions=np.percentile(full_insee_table['income-based_emissions'],90)
@@ -161,6 +185,20 @@ interdecile_emissions=decile9_emissions/decile1_emissions
 masses_emissions_ofemitters = ratio_of_mass( decile1_emissions, decile9_emissions, 'income-based_emissions', 'income-based_emissions', full_insee_table)
 masses_emissions_ofrich = ratio_of_mass( decile1_salary, decile9_salary, 'income-based_emissions', 'salary_value', full_insee_table)
 
+#comparison of product
+mean_content = stat.mean(full_insee_table['emission_content'])
+variance_content = stat.variance(full_insee_table['emission_content'])
+test= (variance_emissions - (Scaling_factor**2) *(variance_content * variance_salary + variance_salary*(mean_content**2)+variance_content*(mean_salary**2)))/variance_emissions
+
+#comparison of variance with sums of log
+full_insee_table['log_income-based_emissions'] = np.log(full_insee_table['income-based_emissions'])
+full_insee_table['log_emission_content'] = np.log(full_insee_table['emission_content'])
+full_insee_table['log_salary_value'] = np.log(full_insee_table['salary_value'])
+
+variance_log_emissions = stat.variance(full_insee_table['log_income-based_emissions'])
+variance_log_content = stat.variance(full_insee_table['log_emission_content'])
+variance_log_salary_value = stat.variance(full_insee_table['log_salary_value'])
+test2=(variance_log_emissions - variance_log_content - variance_log_salary_value)/variance_log_emissions
 
 #Comparaison
 dispersion=interdecile_emissions>interdecile_salary
