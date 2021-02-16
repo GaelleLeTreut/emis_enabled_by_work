@@ -37,11 +37,11 @@ metropolitan_reg = reg_emis_cont.query("not(REGT_AR in [1,2,3,4,99,'All'])")
 to_map = metropolitan_reg.set_index('REGT_AR_NAME')['mean emission content']
 to_map_dic = to_map.to_dict()
 #seems to be necessary in Windows only, maybe bypass or use try:
-to_map_dic['Île-de-France'] = to_map_dic.pop('ÃŽle-de-France')
-to_map_dic['Midi-Pyrénées'] = to_map_dic.pop('Midi-PyrÃ©nÃ©es')
-to_map_dic['Franche-Comté'] = to_map_dic.pop('Franche-ComtÃ©')
-to_map_dic['Rhône-Alpes'] = to_map_dic.pop('RhÃ´ne-Alpes')
-to_map_dic['Provence-Alpes-Côte d\'Azur'] = to_map_dic.pop('Provence-Alpes-CÃ´te d\'Azur')
+#to_map_dic['Île-de-France'] = to_map_dic.pop('ÃŽle-de-France')
+#to_map_dic['Midi-Pyrénées'] = to_map_dic.pop('Midi-PyrÃ©nÃ©es')
+#to_map_dic['Franche-Comté'] = to_map_dic.pop('Franche-ComtÃ©')
+#to_map_dic['Rhône-Alpes'] = to_map_dic.pop('RhÃ´ne-Alpes')
+#to_map_dic['Provence-Alpes-Côte d\'Azur'] = to_map_dic.pop('Provence-Alpes-CÃ´te d\'Azur')
 
 sf.index = sf['nom']
 sf['value']=sf['nom'].replace(to_map_dic)
