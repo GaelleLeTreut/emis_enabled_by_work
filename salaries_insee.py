@@ -245,13 +245,33 @@ compute_and_print_elasticity(np.array(mean_emis_content_class_only['salary_value
 
 #statistiques by sex and class
 sex_class = stat_data_generic(['TRNNETO','SEXE'],full_insee_table,mean_emission_content)
+sex_class['SEXE'] = sex_class['SEXE'].replace(2, 'Female')
+sex_class['SEXE'] = sex_class['SEXE'].replace(1, 'Male')
 #les femmes ont un contenu en émissions beaucoup plus faibles que les hommes
 
+plt.figure(figsize=(18, 12))
+sns.barplot(x="TRNNETO", hue="SEXE", y="mean emission content", data=sex_class)
+plt.xlabel("wage class", size=12)
+plt.ylabel("gCO2/euro", size=12)
+plt.title("Mean emission content by sex and class", size=12)
+plt.savefig(OUTPUTS_PATH+'fig_emis_cont_sex_and_class.jpeg', bbox_inches='tight')
+plt.show()
+
+sex_class.drop(sex_class.loc[sex_class['SEXE']=='All'].index, inplace=True)
+sex_class.drop(sex_class.loc[sex_class['TRNNETO']=='All'].index, inplace=True)
+
+plt.figure(figsize=(18, 12))
+sns.kdeplot(data=sex_class, x="mean emission content", hue="SEXE", multiple="stack")
+plt.show()
+
+plt.figure(figsize=(18, 12))
+sns.scatterplot(x='TRNNETO', y='mean emission content',hue='SEXE',size='pop_mass', data=sex_class)
+plt.show()
 
 #table for Gaelle
 #building table
 raw_table = stat_data_generic(['TRNNETO','A38','SEXE'],full_insee_table,mean_emission_content) 
-ordered_table = raw_table.pivot(index=['TRNNETO','A38'],columns=['SEXE'],values='pop_mass').reset_index()
+ordered_table = raw_table.pivot_table(index=['TRNNETO','A38'],columns=['SEXE'],values='pop_mass').reset_index()
 
 # cleaning labels
 ordered_table.columns.name = 'index'
@@ -260,6 +280,36 @@ ordered_table.rename({1:'male_pop',2:'female_pop','All':'total_pop'},axis=1,inpl
 #add emission content
 to_merge= raw_table[(raw_table['SEXE']=='All')][['TRNNETO','A38','mean emission content']]
 final_table = pd.merge(ordered_table,to_merge,on=['TRNNETO','A38'],how='left')
+
+
+final_table.drop(final_table.loc[final_table['A38']=='All'].index, inplace=True)
+final_table.drop(final_table.loc[final_table['TRNNETO']=='All'].index, inplace=True)
+
+## boucle sur les classes  
+for r in list(final_table['TRNNETO'].unique()):
+    class_r = final_table.loc[final_table['TRNNETO']==r,:]
+    class_r= class_r.drop('TRNNETO',axis=1)
+    class_r= class_r.drop('total_pop', axis=1)
+    df1 = class_r[['A38','female_pop','mean emission content']]
+    df1.rename(columns={'female_pop':'pop'}, inplace=True)
+    df1['sexe']='Female'
+    df2 = class_r[['A38','male_pop','mean emission content']]
+    df2.rename(columns={'male_pop':'pop'}, inplace=True)
+    df2['sexe']='Male'
+    class_r_raw = pd.concat([df1, df2])
+
+    fig, ax1 = plt.subplots(figsize=(18, 12)) # initializes figure and plots
+    ax2 = ax1.twinx() # applies twinx to ax2, which is the second y axis. 
+    f =sns.barplot(x='A38', hue="sexe", y="pop", data=class_r_raw, ax = ax1) # plots the first set of data, and sets it to ax1. 
+    plt.setp(f.get_legend().get_texts(), fontsize=14) # for legend text
+    plt.setp(f.get_legend().get_title(), fontsize=14)
+    sns.scatterplot(x ='A38', y ='mean emission content', data=class_r_raw, marker='o', ax = ax2, color="firebrick", s=80) # plots the second set, and sets to ax2. 
+    # these lines add the annotations for the plot. 
+    ax1.set_xlabel('branches', size=14)
+    ax1.set_ylabel('Population', size=14)
+    ax2.set_ylabel('emission content in gCO2/euro', size=14)
+    plt.title("wage group:"+str(r), size=14)
+    plt.show()
 
 mean_emission_content_by_age = stat_data_generic(['AGE'],full_insee_table,mean_emission_content)
 mean_emission_content_by_age[mean_emission_content_by_age['pop_mass']>=1000]
