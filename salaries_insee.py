@@ -279,9 +279,9 @@ plt.show()
 sex_class.drop(sex_class.loc[sex_class['SEXE']=='All'].index, inplace=True)
 sex_class.drop(sex_class.loc[sex_class['TRNNETO']=='All'].index, inplace=True)
 
-plt.figure(figsize=(18, 12))
-sns.kdeplot(data=sex_class, x="mean emission content", hue="SEXE", multiple="stack")
-plt.show()
+# plt.figure(figsize=(18, 12))
+# sns.kdeplot(data=sex_class, x="mean emission content", hue="SEXE", multiple="stack")
+# plt.show()
 
 
 #Table for Gaelle
@@ -301,6 +301,7 @@ Mean_emis_branch.index =Mean_emis_branch['A38']
 Mean_emis_branch.drop('A38', axis=1,inplace=True)
 
 #sur chaque ligne, pour une population caractérisée par sa classe salariale et son sexe, on a la liste des proportions employées dans les différentes secteurs
+#full_insee_table.drop(full_insee_table.loc[full_insee_table'A38']='CD')
 relative_pop = stat_data_generic(['TRNNETO','SEXE'],full_insee_table, lambda x: proportion_generic(x,'A38'))
 relative_pop = relative_pop.fillna(0)
 relative_pop['SEXE'] = relative_pop['SEXE'].replace(2, 'Female')
@@ -310,54 +311,135 @@ relative_pop.set_index(['TRNNETO','SEXE'], inplace=True)
 relative_pop.columns.name= 'A38'
 relative_pop= relative_pop.sort_index(axis=1)
 
-table_relative_pop  = pd.DataFrame(relative_pop.stack())
-table_relative_pop.columns=['Relative pop by branch']
-table_relative_pop.index = table_relative_pop.index.swaplevel(1, 2)
-table_relative_pop['mean emission content']=None
-
-table_relative_pop.index = table_relative_pop.index.swaplevel(0, 1)
-table_relative_pop.sort_index(level=0, axis=0, inplace=True)
-table_relative_pop.reset_index(inplace=True)
-table_relative_pop.drop(table_relative_pop.loc[table_relative_pop['SEXE']=='All'].index, inplace=True)
-
+## table with diff between male and female pop share 
+diff_share_pop = relative_pop.xs('Male', axis=0, level=1, drop_level=True) - relative_pop.xs('Female', axis=0, level=1, drop_level=True)
+a, b = relative_pop.index.levels
+table_diff_pop = relative_pop.reindex(pd.MultiIndex.from_product([a, [*b, 'diff pop share']]))
+table_diff_pop.index.names =['TRNNETO', 'SEXE']
+table_diff_pop.loc[pd.IndexSlice[:,('diff pop share')], :] = diff_share_pop.values
+table_diff_pop.drop(['Male','Female','All'], level='SEXE',inplace=True)
+table_diff_pop  = pd.DataFrame(table_diff_pop.stack())
+table_diff_pop = table_diff_pop.droplevel('SEXE')
+table_diff_pop.columns=['diff pop by branch']
+table_diff_pop.index = table_diff_pop.index.swaplevel(0, 1)
+table_diff_pop['mean emission content']=None
+table_diff_pop.sort_index(level=0, axis=0, inplace=True)
+table_diff_pop.reset_index(inplace=True)
 # boucle sur branch -fill table with mean emission content values
 for r in Mean_emis_branch.drop('All').index.unique():
-    table_relative_pop.loc[table_relative_pop['A38']==r,'mean emission content'] = np.repeat(Mean_emis_branch.loc[[r]].values, len(table_relative_pop.loc[table_relative_pop['A38']==r,'mean emission content']))
+     table_diff_pop.loc[table_diff_pop['A38']==r,'mean emission content'] = np.repeat(Mean_emis_branch.loc[[r]].values, len(table_diff_pop.loc[table_diff_pop['A38']==r,'mean emission content']))
 
-## Graph ALL mean
+## module pour aligner les axes... install via pip
+#from mpl_axes_aligner import align
+#import math
+
+## Plot histo diff gender in share accross branch - Graph ALL mean
 fig, ax1 = plt.subplots(figsize=(18, 12)) # initializes figure and plots
-ax2 = ax1.twinx() # applies twinx to ax2, which is the second y axis. 
-f =sns.barplot(x='A38', hue="SEXE", y="Relative pop by branch", data=table_relative_pop[table_relative_pop['TRNNETO']=='All'].sort_values(by='mean emission content').drop('TRNNETO',axis=1), ax = ax1) # plots the first set of data, and sets it to ax1. 
-plt.setp(f.get_legend().get_texts(), fontsize=14) # for legend text
-plt.setp(f.get_legend().get_title(), fontsize=14)
-sns.scatterplot(x ='A38', y ='mean emission content', data=table_relative_pop[table_relative_pop['TRNNETO']=='All'].drop('TRNNETO',axis=1).sort_values(by='mean emission content'), marker='o', ax = ax2, color="firebrick", s=80) # plots the second set, and sets to ax2. 
+#ax2 = ax1.twinx() # applies twinx to ax2, which is the second y axis. 
+ax2 = ax1.twinx()
+low1 = min(table_diff_pop.loc[table_diff_pop["TRNNETO"] =='All', "diff pop by branch"])
+high1 = max(table_diff_pop.loc[table_diff_pop["TRNNETO"] =='All', "diff pop by branch"])
+#plt.ylim([math.ceil(low1-0.5*(high1-low1)), math.ceil(high1+0.5*(high1-low1))])
+f1 =sns.barplot(x='A38', y="diff pop by branch", data=table_diff_pop[table_diff_pop['TRNNETO']=='All'].sort_values(by='mean emission content').drop('TRNNETO',axis=1), ax = ax1) # plots the first set of data, and sets it to ax1. 
+f2= sns.scatterplot(x ='A38', y ='mean emission content', data=table_diff_pop[table_diff_pop['TRNNETO']=='All'].drop('TRNNETO',axis=1).sort_values(by='mean emission content'), marker='o', ax = ax2, color="firebrick", s=80) # plots the second set, and sets to ax2. 
 # these lines add the annotations for the plot. 
+#mpl_axes_aligner.align.yaxes(ax1, 0, ax2, 0, 0.2)
+#f1.set_ylim(math.ceil(low1-0.5*(high1-low1)),math.ceil(high1+0.5*(high1-low1)))
 ax1.set_xlabel('branches', size=14)
-ax1.set_ylabel('Population share (%)', size=14)
+ax1.set_ylabel('Gap between male and female population share (%)', size=14)
 ax2.set_ylabel('emission content in gCO2/euro', size=14)
 plt.title("wage group", size=14)
 plt.show()
 
-# remove Graph TRNNETO = all
-table_relative_pop.drop(table_relative_pop.loc[table_relative_pop['TRNNETO']=='All'].index, inplace=True)
+##Test Plots - remove CD 
+test= table_diff_pop.drop(table_diff_pop.loc[table_diff_pop['A38']=='CD'].index).loc[table_diff_pop.drop(table_diff_pop.loc[table_diff_pop['A38']=='CD'].index)["TRNNETO"] =='All']
+fig, ax1 = plt.subplots(figsize=(18, 12)) # initializes figure and plots
+#ax2 = ax1.twinx() # applies twinx to ax2, which is the second y axis. 
+ax2 = ax1.twinx()
+low1 = min(table_diff_pop.loc[table_diff_pop["TRNNETO"] =='All', "diff pop by branch"])
+high1 = max(table_diff_pop.loc[table_diff_pop["TRNNETO"] =='All', "diff pop by branch"])
+#plt.ylim([math.ceil(low1-0.5*(high1-low1)), math.ceil(high1+0.5*(high1-low1))])
+f1 =sns.barplot(x='A38', y="diff pop by branch", data=test.sort_values(by='mean emission content').drop('TRNNETO',axis=1), ax = ax1) # plots the first set of data, and sets it to ax1. 
+f2= sns.scatterplot(x ='A38', y ='mean emission content', data=test.sort_values(by='mean emission content'), marker='o', ax = ax2, color="firebrick", s=80) # plots the second set, and sets to ax2. 
+# these lines add the annotations for the plot. 
+#mpl_axes_aligner.align.yaxes(ax1, 0, ax2, 0, 0.2)
+#f1.set_ylim(math.ceil(low1-0.5*(high1-low1)),math.ceil(high1+0.5*(high1-low1)))
+ax1.set_xlabel('branches without CD', size=14)
+ax1.set_ylabel('Gap between male and female population share (%)', size=14)
+ax2.set_ylabel('emission content in gCO2/euro', size=14)
+plt.title("wage group", size=14)
+plt.show()
 
-## boucle sur les classes  
-for r in list(table_relative_pop['TRNNETO'].unique()):
-    class_r = table_relative_pop.loc[table_relative_pop['TRNNETO']==r,:]
+
+# remove Graph TRNNETO = all
+table_diff_pop.drop(table_diff_pop.loc[table_diff_pop['TRNNETO']=='All'].index, inplace=True)
+
+## Plots for all groups boucle sur les classes  
+for r in list(table_diff_pop['TRNNETO'].unique()):
+    class_r = table_diff_pop.loc[table_diff_pop['TRNNETO']==r,:]
     class_r_raw= class_r.drop('TRNNETO',axis=1).sort_values(by='mean emission content')
 
     fig, ax1 = plt.subplots(figsize=(18, 12)) # initializes figure and plots
     ax2 = ax1.twinx() # applies twinx to ax2, which is the second y axis. 
-    f =sns.barplot(x='A38', hue="SEXE", y="Relative pop by branch", data=class_r_raw, ax = ax1) # plots the first set of data, and sets it to ax1. 
-    plt.setp(f.get_legend().get_texts(), fontsize=14) # for legend text
-    plt.setp(f.get_legend().get_title(), fontsize=14)
+    f =sns.barplot(x='A38', y="diff pop by branch", data=class_r_raw, ax = ax1) # plots the first set of data, and sets it to ax1. 
     sns.scatterplot(x ='A38', y ='mean emission content', data=class_r_raw, marker='o', ax = ax2, color="firebrick", s=80) # plots the second set, and sets to ax2. 
+    #mpl_axes_aligner.align.yaxes(ax1, 0, ax2, 0, 0.2)
     # these lines add the annotations for the plot. 
     ax1.set_xlabel('branches', size=14)
-    ax1.set_ylabel('Population share (%)', size=14)
+    ax1.set_ylabel(' Gap between male and female population share (%)', size=14)
     ax2.set_ylabel('emission content in gCO2/euro', size=14)
     plt.title("wage group:"+str(r), size=14)
     plt.show()
+
+####
+## table with absolute male and female pop share
+####
+# table_relative_pop  = pd.DataFrame(relative_pop.stack())
+# table_relative_pop.columns=['Relative pop by branch']
+# table_relative_pop.index = table_relative_pop.index.swaplevel(1, 2)
+# table_relative_pop['mean emission content']=None
+# table_relative_pop.index = table_relative_pop.index.swaplevel(0, 1)
+# table_relative_pop.sort_index(level=0, axis=0, inplace=True)
+# table_relative_pop.reset_index(inplace=True)
+# table_relative_pop.drop(table_relative_pop.loc[table_relative_pop['SEXE']=='All'].index, inplace=True)
+# #### boucle sur branch -fill table with mean emission content values
+# for r in Mean_emis_branch.drop('All').index.unique():
+#     table_relative_pop.loc[table_relative_pop['A38']==r,'mean emission content'] = np.repeat(Mean_emis_branch.loc[[r]].values, len(table_relative_pop.loc[table_relative_pop['A38']==r,'mean emission content']))
+
+## Plot Graph ALL mean
+# fig, ax1 = plt.subplots(figsize=(18, 12)) # initializes figure and plots
+# ax2 = ax1.twinx() # applies twinx to ax2, which is the second y axis. 
+# f =sns.barplot(x='A38', hue="SEXE", y="Relative pop by branch", data=table_relative_pop[table_relative_pop['TRNNETO']=='All'].sort_values(by='mean emission content').drop('TRNNETO',axis=1), ax = ax1) # plots the first set of data, and sets it to ax1. 
+# plt.setp(f.get_legend().get_texts(), fontsize=14) # for legend text
+# plt.setp(f.get_legend().get_title(), fontsize=14)
+# sns.scatterplot(x ='A38', y ='mean emission content', data=table_relative_pop[table_relative_pop['TRNNETO']=='All'].drop('TRNNETO',axis=1).sort_values(by='mean emission content'), marker='o', ax = ax2, color="firebrick", s=80) # plots the second set, and sets to ax2. 
+# mpl_axes_aligner.align.yaxes(ax1, 0, ax2, 0, 0.01)
+# ##### these lines add the annotations for the plot. 
+# ax1.set_xlabel('branches', size=14)
+# ax1.set_ylabel('Population share (%)', size=14)
+# ax2.set_ylabel('emission content in gCO2/euro', size=14)
+# plt.title("wage group", size=14)
+# plt.show()
+# #### remove Graph TRNNETO = all
+# table_relative_pop.drop(table_relative_pop.loc[table_relative_pop['TRNNETO']=='All'].index, inplace=True)
+
+# #### Plot for all groups - boucle sur les classes  
+# for r in list(table_relative_pop['TRNNETO'].unique()):
+#     class_r = table_relative_pop.loc[table_relative_pop['TRNNETO']==r,:]
+#     class_r_raw= class_r.drop('TRNNETO',axis=1).sort_values(by='mean emission content')
+
+#     fig, ax1 = plt.subplots(figsize=(18, 12)) # initializes figure and plots
+#     ax2 = ax1.twinx() # applies twinx to ax2, which is the second y axis. 
+#     f =sns.barplot(x='A38', hue="SEXE", y="Relative pop by branch", data=class_r_raw, ax = ax1) # plots the first set of data, and sets it to ax1. 
+#     plt.setp(f.get_legend().get_texts(), fontsize=14) # for legend text
+#     plt.setp(f.get_legend().get_title(), fontsize=14)
+#     sns.scatterplot(x ='A38', y ='mean emission content', data=class_r_raw, marker='o', ax = ax2, color="firebrick", s=80) # plots the second set, and sets to ax2. 
+#     # these lines add the annotations for the plot. 
+#     ax1.set_xlabel('branches', size=14)
+#     ax1.set_ylabel('Population share (%)', size=14)
+#     ax2.set_ylabel('emission content in gCO2/euro', size=14)
+#     plt.title("wage group:"+str(r), size=14)
+#     plt.show()
 
 #statistiques by sex and branch
 sex_branch = stat_data_generic(['A38','SEXE'],full_insee_table,mean_emission_content)
@@ -369,4 +451,51 @@ mean_emission_content_by_age = stat_data_generic(['AGE'],full_insee_table,mean_e
 mean_emission_content_by_age[mean_emission_content_by_age['pop_mass']>=1000]
 
 
+######
+###  Region
+###### 
+#sur chaque ligne, pour une population caractérisée par sa classe salariale et son sexe, on a la liste des proportions employées dans les différentes secteurs
+relative_pop_reg = stat_data_generic(['REGT_AR'],full_insee_table, lambda x: proportion_generic(x,'A38'))
+relative_pop_reg = relative_pop_reg.fillna(0)
+relative_pop_reg.set_index('REGT_AR',drop=True, inplace=True)
+relative_pop_reg.columns.names=['A38']
 
+table_relative_pop_reg  = pd.DataFrame(relative_pop_reg.stack())
+table_relative_pop_reg.columns=['Relative pop by branch']
+table_relative_pop_reg['mean emission content']=None
+table_relative_pop_reg.index = table_relative_pop_reg.index.swaplevel(0, 1)
+table_relative_pop_reg.sort_index(level=[0,1], axis=0, inplace=True)
+table_relative_pop_reg.reset_index(inplace=True)
+# boucle sur branch -fill table with mean emission content values
+for r in Mean_emis_branch.drop('All').index.unique():
+     table_relative_pop_reg.loc[table_relative_pop_reg['A38']==r,'mean emission content'] = np.repeat(Mean_emis_branch.loc[[r]].values, len(table_relative_pop_reg.loc[table_relative_pop_reg['A38']==r,'mean emission content']))
+# remove Graph REGT_AR = all
+table_relative_pop_reg.drop(table_relative_pop_reg.loc[table_relative_pop_reg['REGT_AR']=='All'].index, inplace=True)
+# Rename regions
+table_relative_pop_reg['REGT_AR']=table_relative_pop_reg['REGT_AR'].replace(dict_codereg_to_regname)
+
+## one plot all regions
+# fig, ax1 = plt.subplots(figsize=(18, 12)) # initializes figure and plots
+# f1 =sns.barplot(x="A38", hue="REGT_AR", y="Relative pop by branch", data=table_relative_pop_reg.sort_values(by='mean emission content'), ax = ax1) # plots the 
+# plt.xlabel("branches", size=12)
+# plt.ylabel("Relative pop by branch", size=12)
+# plt.title("repartition of pop by region", size=12)
+# plt.show()
+
+## Plots for all region
+for r in list(table_relative_pop_reg['REGT_AR'].unique()):
+    region_r = table_relative_pop_reg.loc[table_relative_pop_reg['REGT_AR']==r,:]
+    region_r_raw= region_r.drop('REGT_AR',axis=1).sort_values(by='mean emission content')
+
+    fig, ax1 = plt.subplots(figsize=(18, 12)) # initializes figure and plots
+    ax2 = ax1.twinx() # applies twinx to ax2, which is the second y axis. 
+    f =sns.barplot(x='A38', y="Relative pop by branch", data=region_r_raw, ax = ax1) # plots the first set of data, and sets it to ax1. 
+    sns.scatterplot(x ='A38', y ='mean emission content', data=region_r_raw, marker='o', ax = ax2, color="firebrick", s=80) # plots the second set, and sets to ax2. 
+    # these lines add the annotations for the plot. 
+    ax1.set_xlabel('branches', size=14)
+    ax1.set_ylabel('population share (%)', size=14)
+    ax2.set_ylabel('emission content in gCO2/euro', size=14)
+    plt.title("Region:"+str(r), size=14)
+    plt.show()
+    
+# reg_emis_cont = reg_emis_cont.sort_values(by=['mean emission content'], ascending = False )
