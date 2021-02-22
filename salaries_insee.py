@@ -12,6 +12,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
 import utils as ut
+import statsmodels.api as sm
 from dbf_into_csv import *
 from sklearn.linear_model import LinearRegression
 
@@ -72,7 +73,7 @@ x = np.log(np.array([100,200,500,1000,1500,2000,3000,4000,6000,8000,10000,12000,
 #plt.show()
 
 #get the alpha using only two last classes
-alpha = LinearRegression().fit(x[-2:].reshape(-1,1), y[-2:]).coef_
+alpha = -  LinearRegression().fit(x[-2:].reshape(-1,1), y[-2:]).coef_
 
 #Pareto interpolation of mean of last class
 dic_TRNNETO_to_salary[23]= alpha/(alpha-1)*50000
@@ -223,6 +224,68 @@ pop_mass_per_sector_x_salary['emissions_capita'] = pop_mass_per_sector_x_salary[
 
 ut.make_Lorenz_and_concentration_curves(np.transpose(np.array(pop_mass_per_sector_x_salary[['pop_mass','salary_value', 'emissions_capita']])),{'pop_mass':0,'income':1,'emissions':2},OUTPUTS_PATH + 'Lorenz_curve_French_employee','% data for Lorenz and concentration curves for French employees \n% file automatically created from ' + this_file )
 
+#lowest emitting sector is QA and there is a person of the highest income classes there
+#highest emitting sector is CD and there is a person of the lowest income classes there
+if ((23 in full_insee_table[full_insee_table['A38']=='QA']['TRNNETO'].unique()) and (0 in full_insee_table[full_insee_table['A38']=='CD']['TRNNETO'].unique() )):
+    print('A person of the highest income classes of the lowest emitting sectors emits' + "{:.2f}".format(((dic_TRNNETO_to_salary[23]*dic_to_emission_content['QA'])/(dic_TRNNETO_to_salary[0]*dic_to_emission_content['CD']))[0]) + ' as a person in the lowest income classes of the highest emitting sector, although the reatio of the wages is '+"{:.2f}".format((dic_TRNNETO_to_salary[23]/dic_TRNNETO_to_salary[0])[0])+'.')
+
+##############
+#regression 
+##############
+
+def estimate_OLS(X):
+    X2=sm.add_constant(X)
+    est=sm.OLS(np.array(full_insee_table['log_emission_content']),X2)
+    return est.fit()
+
+
+#regression of emission content against salary
+est_wages_alone = estimate_OLS( np.array(full_insee_table['log_salary_value']).reshape((-1,1)))
+print('Regressing mean emission content against log of wages')
+print(est_wages_alone.summary())
+#get several parameters
+#est_salary_alone.params #coefficient of regression
+#est_salary_alone.pvalues #p-values
+#est_salary_alone.conf_int #confidence interval of coefficient
+
+#regression of emission content against sexe
+est_sex_alone = estimate_OLS( np.array(full_insee_table['SEXE']).reshape((-1,1)))
+print('Regressing mean emission content against sex')
+print(est_sex_alone.summary())
+
+#regression of emission content against wages and sexe
+est_wages_and_sex = estimate_OLS( full_insee_table[['log_salary_value','SEXE']])
+print('Regressing mean emission content against wages and sex')
+print(est_wages_and_sex.summary())
+
+#build the frequency matrix if independent
+X='A38'
+Y='SEXE'
+cont = full_insee_table[[X,Y]].pivot_table(index=X,columns=Y,aggfunc=len,margins=True,margins_name="Total")
+c = cont.fillna(0)
+##compute the contingency matrix in case of independence
+tx = cont.loc[:,["Total"]]
+ty = cont.loc[["Total"],:]
+n = len(full_insee_table)
+indep = tx.dot(ty) / n
+#compute xi2 by hand, ok to include margins, as they are zero here
+measure = (c-indep)**2/indep
+xi_n = measure.sum().sum() #this is the same as st_chi2
+#picture the matrix of gap
+table = measure/xi_n
+sns.heatmap(table.iloc[:-1,:-1])#,annot=c.iloc[:-1,:-1])
+plt.show()
+#three striking sector
+
+#employment of women by working condition
+working_condition_by_sex=full_insee_table.groupby(['CPFD','SEXE']).apply(len).reset_index()
+working_condition_by_sex['proportion_by_sex']= pd.concat((working_condition_by_sex[working_condition_by_sex['SEXE']==1][0]/np.sum(working_condition_by_sex[working_condition_by_sex['SEXE']==1][0]), working_condition_by_sex[working_condition_by_sex['SEXE']==2][0]/np.sum(working_condition_by_sex[working_condition_by_sex['SEXE']==2][0])))
+
+
+#mean_emis_content_class_only = mean_emis_content_by_class[ mean_emis_content_by_class['TRNNETO'] != 'All' ]
+#mean_emis_content_class_only['salary_value'] = mean_emis_content_class_only['TRNNETO'].replace(dic_TRNNETO_to_salary)
+#compute_and_print_elasticity(np.array(mean_emis_content_class_only['salary_value']),np.array(mean_emis_content_class_only['mean emission content']),'salary','mean emission content per class', weight = mean_emis_content_class_only['pop_mass'], print_rsq=True)
+
 ## PLOT
 sns.set_context('paper', font_scale=0.9)
 
@@ -265,30 +328,11 @@ plt.close()
 
 
 
-#regression 
-def compute_and_print_elasticity(x,y,independent_variable,study,weight=None,print_rsq=False):
-    x_log = np.log(x).reshape((-1,1))
-    y_log = np.log(y)
-    model = LinearRegression().fit(x_log, y_log,sample_weight = weight)
-    elasticity = model.coef_[0]
-    print(independent_variable + " elasticity in " +  study + " is " +"{:.2f}".format(elasticity))
-    if print_rsq:
-        print('and coefficient of determination is '+"{:.2f}".format(model.score(x_log,y_log, sample_weight = weight)))
-
-#the computation of the two next elasticities will be the same if one uses full_insee_table without weighting instead of pop_mass_per_sector_x_salary 
-compute_and_print_elasticity(np.array(pop_mass_per_sector_x_salary['salary_value']),np.array(pop_mass_per_sector_x_salary['emissions_capita']), 'salary', 'income-based emissions', weight = pop_mass_per_sector_x_salary['pop_mass'],print_rsq=True)
-
-compute_and_print_elasticity(np.array(pop_mass_per_sector_x_salary['salary_value']),np.array(pop_mass_per_sector_x_salary['emission_content']), 'salary', 'emission_content', weight = pop_mass_per_sector_x_salary['pop_mass'],print_rsq=True)
-
-mean_emis_content_class_only = mean_emis_content_by_class[ mean_emis_content_by_class['TRNNETO'] != 'All' ]
-mean_emis_content_class_only['salary_value'] = mean_emis_content_class_only['TRNNETO'].replace(dic_TRNNETO_to_salary)
-compute_and_print_elasticity(np.array(mean_emis_content_class_only['salary_value']),np.array(mean_emis_content_class_only['mean emission content']),'salary','mean emission content per class', weight = mean_emis_content_class_only['pop_mass'], print_rsq=True)
 
 
 #statistiques by sex and class
 sex_class = ut.stat_data_generic(['TRNNETO','SEXE'],full_insee_table, ut.mean_emission_content)
-sex_class['SEXE'] = sex_class['SEXE'].replace(2, 'Female')
-sex_class['SEXE'] = sex_class['SEXE'].replace(1, 'Male')
+sex_class['SEXE'].replace({1:'Male',2:'Female'},inplace=True)
 #les femmes ont un contenu en émissions beaucoup plus faibles que les hommes
 
 plt.figure(figsize=(18, 12))
@@ -327,8 +371,7 @@ Mean_emis_branch.drop('A38', axis=1,inplace=True)
 #full_insee_table.drop(full_insee_table.loc[full_insee_table'A38']='CD')
 relative_pop = ut.stat_data_generic(['TRNNETO','SEXE'],full_insee_table, lambda x: ut.proportion_generic(x,'A38'))
 relative_pop = relative_pop.fillna(0)
-relative_pop['SEXE'] = relative_pop['SEXE'].replace(2, 'Female')
-relative_pop['SEXE'] = relative_pop['SEXE'].replace(1, 'Male')
+relative_pop['SEXE'].replace({1:'Male',2:'Female'},inplace=True)
 
 relative_pop.set_index(['TRNNETO','SEXE'], inplace=True)
 relative_pop.columns.name= 'A38'
@@ -509,8 +552,7 @@ for r in list(table_diff_pop['TRNNETO'].unique()):
 
 #statistiques by sex and branch
 sex_branch = ut.stat_data_generic(['A38','SEXE'],full_insee_table,ut.mean_emission_content)
-sex_branch['SEXE'] = sex_branch['SEXE'].replace(2, 'Female')
-sex_branch['SEXE'] = sex_branch['SEXE'].replace(1, 'Male')
+sex_branch['SEXE'].replace({1:'Male',2:'Female'},inplace=True)
 
 #statistiques by age
 mean_emission_content_by_age = ut.stat_data_generic(['AGE'],full_insee_table,ut.mean_emission_content)
