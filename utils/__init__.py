@@ -26,6 +26,13 @@ def mean_emission_content(table):
    mean = np.sum(table['emission_content'] * table['salary_value'] )/ np.sum(table['salary_value'])
    return pd.Series([mean,len(table)],index=['mean emission content','pop_mass'])
 
+def mean_salary(table):
+   """
+   compute the mean emission content (weighted by value-added (here wages)
+   """
+   mean = np.sum(table['salary_value'] )/ len(table)
+   return pd.Series([mean],index=['mean wages'])
+
 def new_proportion(x, category):
     """
     Return proportion of each modality of a category
@@ -35,6 +42,14 @@ def new_proportion(x, category):
     """
     return (x.groupby(category).apply(lambda y: pd.Series({'proportion':len(y)}))/len(x)).reset_index()
 
+def proportion_weighted_by_wages(x, category):
+    """
+    Return proportion of each modality of a category
+
+    DataFrame, string -> Series
+    compute the proportion (in percentage) of each modality of the category (category) of DataFrame x (with weigth given by weight_label)
+    """
+    return (x.groupby(category).apply(lambda y: pd.Series({'proportion':np.sum(y['salary_value'])}))/np.sum(x['salary_value'])).reset_index()
 
 def proportion_generic(x, category):
     """
@@ -48,12 +63,35 @@ def proportion_generic(x, category):
         return pd.Series({str(modality): 100 * len(x[x[category] == modality]) /len(x)})
     return apply_over_labels( fun, sorted(x[category].unique()), x )
 
+def proportion_generic_weighted(x, category):
+    """
+    Return proportion of each modality of a category
+
+    DataFrame, string -> Series
+    compute the proportion (in percentage) of each modality of the category (category) of DataFrame x (with weigth given by weight_label)
+    """
+    def fun(modality, x):
+        #return pd.Series({'proportion_of_'+str(modality)+'_in_'+category: 100 * len(x[x[category] == modality]) /len(x)})
+        return pd.Series({str(modality): 100 * np.sum(x[x[category] == modality]['salary_value']) /np.sum(x['salary_value'])})
+    return apply_over_labels( fun, sorted(x[category].unique()), x )
+
 def apply_over_labels(fun,list_of_label, *args):
     """apply function for each label"""
     d=pd.Series([])
     for l in list_of_label:
         d = d.append( fun(l, *args) )
     return d
+
+def stat_data_generic_df(list_of_label, x, fun):
+    if len(list_of_label)==0:
+        return fun(x)
+    else:
+        label = list_of_label[0]
+        x_extracted_lab = x.groupby([label]).apply(lambda y: stat_data_generic_df(list_of_label[1:], y, fun)).reset_index().drop('level_1',axis=1)
+        x_extracted_all = stat_data_generic_df(list_of_label[1:],x,fun)
+        x_extracted_all[label] = 'All'
+        x_extracted = pd.concat([x_extracted_lab,x_extracted_all], sort=False,ignore_index=True)
+        return x_extracted
 
 def stat_data_generic(list_of_label, x, fun):
     if len(list_of_label)==0:
@@ -66,6 +104,20 @@ def stat_data_generic(list_of_label, x, fun):
         x_extracted_all[label] = 'All'
         x_extracted = pd.concat([x_extracted_lab,x_extracted_all], sort=False,ignore_index=True)
         return x_extracted
+
+def share_generic(label, x, list_of_category):
+    """
+    Return the share of variable for each combination of  category
+
+    string, DataFrame, list of string -> DataFrame
+    compute the share of total mass of variable label of DataFrame x that belongs to each combination of modalities of list_of_category (with weigth given by weight_label)
+    Caution variable label must have an extensive meaning, otherwise computing the share over a DataFrame is meaningless
+    """
+    share_label='share_of_'+label
+    fun = lambda y: pd.Series({share_label:np.sum(y[label])})
+    df = stat_data_generic(list_of_category, x, fun)
+    df[share_label] = df[share_label]/(fun(x)[share_label])*100
+    return df
 
 def make_Lorenz_and_concentration_curves(table,dic_index,file_name, comment):
     income_index = dic_index['income']

@@ -16,6 +16,8 @@ import pandas as pd
 import pymrio
 import os
 import utils as ut
+import matplotlib.pyplot as plt
+import seaborn as sns
 
 this_file = 'Inc_Based.py'
 ##########################
@@ -38,6 +40,13 @@ if not os.path.exists(output_folder):
 DATA_PATH = path + os.sep + data_folder + os.sep
 OUTPUTS_PATH = path + os.sep + output_folder + os.sep
 
+plt.rcParams['text.latex.preamble']=[r"\usepackage{lmodern}"]
+params = {'text.usetex' : True,
+          'font.size' : 11,
+          'font.family' : 'lmodern',
+        #  'text.latex.unicode': True,
+          }
+plt.rcParams.update(params)
 
 ##########################
 ###### Chargement de la base MRIO
@@ -394,8 +403,6 @@ check=emis_enable.reset_index(inplace=True)
 ##########################
 ###### PLOTS - WITH DIRECT EMISSIONS
 ##########################
-import matplotlib.pyplot as plt
-import seaborn as sns
 
 sns.set_context('paper', font_scale=0.9)
 
@@ -423,7 +430,8 @@ check=emis_enable_d.reset_index(inplace=True)
 plt.figure(figsize=(18, 12))
 sns.barplot(x="sector", hue="region", y="emission content", data=emis_cont_tot)
 plt.xlabel("Sector code", size=12)
-plt.ylabel("gCO2/euro", size=12)
+plt.ylabel("g$\mathrm{CO}_2$/euro", size=12)
+plt.yscale('log')
 plt.title("Total emission content - France vs Rest of World", size=12)
 plt.savefig(OUTPUTS_PATH+'fig_emis_cont_FRvsRoW_tot.jpeg', bbox_inches='tight')
 plt.show()
