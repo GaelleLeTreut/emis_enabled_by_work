@@ -28,7 +28,7 @@ DATA_PATH = data_folder + os.sep
 ###############
 
 if not os.path.isfile(OUTPUTS_PATH + 'emission_content_france.csv'):
-    exec(open("Inc_Based.py").read())
+    exec(open("income_based_intensity.py").read())
 emis_cont = pd.read_csv( OUTPUTS_PATH + 'emission_content_france.csv', sep=';', index_col=0, comment='#')
 
 
