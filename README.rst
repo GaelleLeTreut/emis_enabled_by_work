@@ -1,5 +1,5 @@
 ############
-Quantifying GHG emissions by work
+Quantifying GHG emissions enabled by work
 ############
 
 
@@ -7,50 +7,33 @@ What is it
 ==========
 
 
-  
-
-Where to get it
-===============
-
-
-
 Quickstart    
 ==========
 
 
-To use it call
+To use it for the firt time call
 
 .. code:: python
 
-    import pymrio
-    test_mrio = pymrio.load_test()
+    income_based_intensity.py
 
-The test mrio consists of six regions and eight sectors:  
+It would generate a CSV file with the income-based emission contents for further analysis. 
 
-.. code:: python
-
-
-    print(test_mrio.get_sectors())
-    print(test_mrio.get_regions())
-
-The test mrio includes tables flow tables and some satellite accounts. 
-To show these:
+For economic and gender inequalities study, call:
 
 .. code:: python
 
-    test_mrio.Z
-    test_mrio.emissions.F
+    eco_gender_analysis.py 
     
-However, some tables necessary for calculating footprints (like test_mrio.A or test_mrio.emissions.S) are missing. pymrio automatically identifies which tables are missing and calculates them: 
+For economic and gender inequalities study, call
 
-.
-Contributing
-=============
+.. code:: python
 
-Want to contribute? Great!
-Please check `CONTRIBUTING.rst`_ if you want to help to improve Pymrio.
-  
-.. _CONTRIBUTING.rst: https://github.com/konstantinstadler/pymrio/blob/master/CONTRIBUTING.rst
-   
+   spatial_analysis.py 
+
+Data    
+==========
+
+
 
 
