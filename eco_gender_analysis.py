@@ -31,7 +31,7 @@ OUTPUTS_PATH = output_folder + os.sep
 data_folder = 'data'
 DATA_PATH = data_folder + os.sep
 
-this_file = 'salaries_insee.py'
+this_file = 'eco_gender_analysis.py'
 
 
 #######################
