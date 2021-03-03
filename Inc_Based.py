@@ -40,13 +40,13 @@ if not os.path.exists(output_folder):
 DATA_PATH = path + os.sep + data_folder + os.sep
 OUTPUTS_PATH = path + os.sep + output_folder + os.sep
 
-plt.rcParams['text.latex.preamble']=[r"\usepackage{lmodern}"]
-params = {'text.usetex' : True,
-          'font.size' : 11,
-          'font.family' : 'lmodern',
-        #  'text.latex.unicode': True,
-          }
-plt.rcParams.update(params)
+# plt.rcParams['text.latex.preamble']=[r"\usepackage{lmodern}"]
+# params = {'text.usetex' : True,
+#           'font.size' : 11,
+#           'font.family' : 'lmodern',
+#         #  'text.latex.unicode': True,
+#           }
+# plt.rcParams.update(params)
 
 ##########################
 ###### Chargement de la base MRIO
