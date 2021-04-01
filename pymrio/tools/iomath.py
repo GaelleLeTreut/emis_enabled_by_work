@@ -426,51 +426,36 @@ def calc_B(Z, x):
     Returns
     -------
     pandas.DataFrame or numpy.array
-        Symmetric input output table (coefficients) A
+        Symmetric input output table (coefficients) B
         The type is determined by the type of Z.
         If DataFrame index/columns as Z
 
     """
-    if (type(x) is pd.DataFrame) or (type(x) is pd.Series):
-        x = x.values
-    if (type(x) is not np.ndarray) and (x == 0):
-        recix = 0
-    else:
-        with warnings.catch_warnings():
-            # catch the divide by zero warning
-            # we deal wit that by setting to 0 afterwards
-            warnings.simplefilter("ignore")
-            recix = 1 / x
-        recix[recix == np.inf] = 0
-        recix = recix.reshape((1, -1))
-    # use numpy broadcasting - factor ten faster
-    # Mathematical form - slow
-    # return Z.dot(np.diagflat(recix))
     if type(Z) is pd.DataFrame:
-        return pd.DataFrame(np.transpose(Z.values) * recix, index=Z.index, columns=Z.columns)
+        return calc_A(Z.transpose(), x)
     else:
-        return np.transpose(Z) * recix
+        return calc_A(np.transpose(Z), x)
 
 
 def calc_G(B):
-    """Calculate the Leontief L from B
+    """Calculate the Ghosh G from B
 
     G = inverse matrix of (I - B)
 
-    Where I is an identity matrix of same shape as A
+    Where I is an identity matrix of same shape as B
 
     Comes from:
-        x = Bx + VA  =>  (I-B)x = VA
+        x = Bx + v  =>  (I-B)x = v
     Where:
         B: Ghosh coefficient input () - output () table
         x: output vector
-        VA: value added block
+        v: value added vector
 
-    Hence, G allows to derive a required output vector x for a given VA
+    Hence, G allows to derive a required output vector x for a given value added v
 
     Parameters
     ----------
-    G : pandas.DataFrame or numpy.array
+    B : pandas.DataFrame or numpy.array
         Symmetric input output table (coefficients)
 
     Returns
@@ -481,11 +466,7 @@ def calc_G(B):
         If DataFrame index/columns as B
 
     """
-    I = np.eye(B.shape[0])  # noqa
-    if type(B) is pd.DataFrame:
-        return pd.DataFrame(np.linalg.inv(I - B), index=B.index, columns=B.columns)
-    else:
-        return np.linalg.inv(I - B)
+    return calc_L(B)
 
 def calc_Z_from_B(B, x):
     """calculate the Z matrix (flows) from B and x
