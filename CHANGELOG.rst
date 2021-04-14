@@ -3,6 +3,47 @@ Changelog
 #########
 
 ***************************
+v0.4.5 (March 03, 2021) 
+***************************
+
+Bugfixes
+========
+
+* Index sorting consistent for all characterized impacts 
+
+
+***************************
+v0.4.4 (February 26, 2021) 
+***************************
+
+Bugfixes
+========
+
+* Characterization for cases when some stressors are missing from the characterization matrix
+* Spelling mistakes
+* Fixed installation description in readme and documentation
+
+***************************
+v0.4.3 (February 24, 2021) 
+***************************
+
+New features
+============
+
+* Added automatic downloader for EXIOBASE 3 files
+* Method for characterizing stressors (pymrio.Extension.characterize)
+
+Bugfixes
+========
+
+* Fixed: xlrd and numpy requirments for later pandas versions
+
+Development
+===========
+
+* Switched from travis to github actions for testing and converage reports
+
+***************************
 v0.4.2 (November 19, 2020)
 ***************************
 
