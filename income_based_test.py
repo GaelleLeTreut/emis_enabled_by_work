@@ -63,11 +63,36 @@ F_Y_sec = pd.read_csv(DATA_PATH + 'F_Y_sec.txt', header=[0,1], index_col=0, sep=
 ## chargement des valeurs de base
 io_orig.calc_all()
 
+################################
+#### EXTENSION FOR VALUE-ADDED
+################################
 
+list_value_added= ['Taxes less subsidies on products purchased: Total',
+       'Other net taxes on production',
+       'Compensation of employees; wages, salaries, & employers\' social contributions: Low-skilled',
+       'Compensation of employees; wages, salaries, & employers\' social contributions: Medium-skilled',
+       'Compensation of employees; wages, salaries, & employers\' social contributions: High-skilled',
+       'Operating surplus: Consumption of fixed capital',
+       'Operating surplus: Rents on land',
+       'Operating surplus: Royalties on resources',
+       'Operating surplus: Remaining net operating surplus']
+
+io_orig.value_added = io_orig.satellite.copy(new_name='Value-Added')		
+
+for df_name, df in zip(io_orig.value_added.get_DataFrame(data=False, with_unit=True, with_population=False),
+                       io_orig.value_added.get_DataFrame(data=True, with_unit=True, with_population=False)):
+    io_orig.value_added.__dict__[df_name] = df.loc[list_value_added]	
+
+# io_orig.value_added = pymrio.Extension('value_added')
+
+################################
+#### EXTENSION FOR CO2_emissions equivalent
+################################
+#### 1/ Aggregating All CO2 and All CH4
 ## No comportement available for stressors
 ## https://pymrio.readthedocs.io/en/latest/notebooks/advanced_group_stressors.html
-groups = io_orig.satellite.get_index(as_dict=True, grouping_pattern = {'.*- air': 'Air',})
-io_orig.satellite_agg = io_orig.satellite.copy(new_name='Aggregated Air')		
+groups = io_orig.satellite.get_index(as_dict=True, grouping_pattern = {'CO2.*': 'CO2','CH4.*': 'CH4'})
+io_orig.satellite_agg = io_orig.satellite.copy(new_name='Aggregated CO2 CH4')		
 
 for df_name, df in zip(io_orig.satellite_agg.get_DataFrame(data=False, with_unit=True, with_population=False),
                        io_orig.satellite_agg.get_DataFrame(data=True, with_unit=True, with_population=False)):
@@ -76,7 +101,58 @@ for df_name, df in zip(io_orig.satellite_agg.get_DataFrame(data=False, with_unit
     else:
         io_orig.satellite_agg.__dict__[df_name] = df.groupby(groups).sum()		
 
-### Only CO2eq
-io_orig.satellite_agg.D_cba.loc['Air']['FR']/1e9
+print("D_pba C02 FR in Mt:", io_orig.satellite_agg.D_pba.loc['CO2']['FR'].sum()/1e9)
+print("D_pba CH4 FR in Mt:", io_orig.satellite_agg.D_pba.loc['CH4']['FR'].sum()/1e9)
+
+
+#### 2/ Converting CH4 into CO2eq - Global warming potential multiplication
+GWP_CH4= 28
+## changer dans unit par CO2eq =>dans le fichier unit ca marche pas
+io_orig.satellite_conv= io_orig.satellite_agg.copy(new_name='Test CO2eq')	
+for df_name, df in zip(io_orig.satellite_conv.get_DataFrame(data=False, with_unit=True, with_population=False),
+                       io_orig.satellite_conv.get_DataFrame(data=True, with_unit=True, with_population=False)):
+    if df_name == 'unit':
+        io_orig.satellite_conv.__dict__[df_name]['CH4']='kg CO2-eq'
+        io_orig.satellite_conv.unit.to_excel(OUTPUTS_PATH+'units_eq.xlsx')
+    else:
+        io_orig.satellite_conv.__dict__[df_name].loc['CH4'] = df.loc['CH4']*GWP_CH4
+        
+print("D_pba C02 FR in Mt:", io_orig.satellite_conv.D_pba.loc['CO2']['FR'].sum()/1e9)
+print("D_pba CH4 FR in Mt:", io_orig.satellite_conv.D_pba.loc['CH4']['FR'].sum()/1e9)
+
+#### 3/ Grouping CH4 and CO2
+####  ici ca me supprime mon CH4 et mon CO2 je passe de 1098 index à 1096... et pas de C02eq
+groups_CO2 = io_orig.satellite_conv.get_index(as_dict=True, grouping_pattern = {'CO2.*':'CO2eq','CH4.*':'CO2eq'})
+io_orig.satellite_eq = io_orig.satellite_conv.copy(new_name='Aggregated CO2 CH4')		
+
+for df_name, df in zip(io_orig.satellite_eq.get_DataFrame(data=False, with_unit=True, with_population=False),
+                       io_orig.satellite_eq.get_DataFrame(data=True, with_unit=True, with_population=False)):
+    if df_name == 'unit':
+        io_orig.satellite_eq.__dict__[df_name] = df.groupby(groups_CO2).apply(lambda x: ' & '.join(x.unit.unique()))
+    else:
+        io_orig.satellite_eq.__dict__[df_name] = df.groupby(groups_CO2).sum()	
+
+
+print("D_pba C02eq FR in Mt:", io_orig.satellite_eq.D_pba.loc['CO2eq']['FR'].sum()/1e9)
+
+#### 4/ Extension for the CO2_emission
+io_orig.CO2_emissions = io_orig.satellite_eq.copy(new_name='CO2 emissions')		
+for df_name, df in zip(io_orig.CO2_emissions.get_DataFrame(data=False, with_unit=True, with_population=False),
+                       io_orig.CO2_emissions.get_DataFrame(data=True, with_unit=True, with_population=False)):
+    io_orig.CO2_emissions.__dict__[df_name] = df.loc['CO2eq']	
+
+print("D_pba C02eq FR in Mt:", io_orig.CO2_emissions.D_pba.loc['FR'].sum()/1e9)
+
+### Supprimer les extension intermediaire
+del io_orig.satellite_conv
+del io_orig.satellite_eq
+
+
+### New extension for Only CO2eq
+print(io_orig.satellite_agg.D_cba.loc['CO2']['FR']/1e9)
+
+
+
+#### Ajouter le D_iba dans pymrio.Extension? 
 
 
