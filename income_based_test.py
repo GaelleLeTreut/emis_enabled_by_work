@@ -107,7 +107,7 @@ print("D_pba CH4 FR in Mt:", io_orig.satellite_agg.D_pba.loc['CH4']['FR'].sum()/
 
 #### 2/ Converting CH4 into CO2eq - Global warming potential multiplication
 GWP_CH4= 28
-## changer dans unit par CO2eq =>dans le fichier unit ca marche pas
+## PROBLEM UNIT / changer dans unit par CO2eq =>dans le fichier unit ca marche pas
 io_orig.satellite_conv= io_orig.satellite_agg.copy(new_name='Test CO2eq')	
 for df_name, df in zip(io_orig.satellite_conv.get_DataFrame(data=False, with_unit=True, with_population=False),
                        io_orig.satellite_conv.get_DataFrame(data=True, with_unit=True, with_population=False)):
@@ -121,7 +121,6 @@ print("D_pba C02 FR in Mt:", io_orig.satellite_conv.D_pba.loc['CO2']['FR'].sum()
 print("D_pba CH4 FR in Mt:", io_orig.satellite_conv.D_pba.loc['CH4']['FR'].sum()/1e9)
 
 #### 3/ Grouping CH4 and CO2
-####  ici ca me supprime mon CH4 et mon CO2 je passe de 1098 index à 1096... et pas de C02eq
 groups_CO2 = io_orig.satellite_conv.get_index(as_dict=True, grouping_pattern = {'CO2.*':'CO2eq','CH4.*':'CO2eq'})
 io_orig.satellite_eq = io_orig.satellite_conv.copy(new_name='Aggregated CO2 CH4')		
 
@@ -154,5 +153,4 @@ print(io_orig.satellite_agg.D_cba.loc['CO2']['FR']/1e9)
 
 
 #### Ajouter le D_iba dans pymrio.Extension? 
-
-
+#io_orig2 =  pymrio.parse_exiobase3(exiobase_storage)

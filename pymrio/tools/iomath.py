@@ -349,7 +349,7 @@ def recalc_M(S, D_cba, Y, nr_sectors):
     return M
 
 
-def calc_accounts(S, L, Y, nr_sectors):
+def calc_accounts(S, L, Y, nr_sectors, G=None, value_added=None):
     """Calculate sector specific cba and pba based accounts, imp and exp accounts
 
     The total industry output x for the calculation
@@ -371,7 +371,7 @@ def calc_accounts(S, L, Y, nr_sectors):
     Returns
     -------
     Tuple
-        (D_cba, D_pba, D_imp, D_exp)
+        (D_cba, D_pba, D_imp, D_exp, D_iba)
 
         Format: D_row x L_col (=nr_countries*nr_sectors)
 
@@ -381,6 +381,7 @@ def calc_accounts(S, L, Y, nr_sectors):
                       the country per sector
         - D_exp       Total factor use in one country to satisfy final demand
                       in all other countries (per sector)
+        - D_iba        Income-based footprints per sector and country
     """
     # diagonalize each sector block per country
     # this results in a disaggregated y with final demand per country per
@@ -408,6 +409,22 @@ def calc_accounts(S, L, Y, nr_sectors):
     D_exp = pd.DataFrame(
         S.values * x_exp.reshape((1, -1)), index=S.index, columns=S.columns
     )
+        
+    # Income-based emissions
+    #Q1 = comment sait-on que D_cba -and others- sont dans io(self).satellite et non dans io? = > c'est la fonction calc_extension qui fait ca : elle calcule D_cba and co pour la liste d'extension qui par défaut n'est que 'satellite
+    #Q2 = comment mettre une condition sur la présence de value_added et de G dans l'extension ?
+    if (
+            (value_added is not None)
+            and (G is not None)
+        ):
+            S = S.values
+            S = S.reshape(-1,1)
+            S = np.transpose(S)
+            iec = S.dot(G)       
+            D_iba = pd.DataFrame(iec.dot(np.transpose(value_added)), index = value_added.columns, columns= value_added.index )
+            del iec
+            return (D_cba, D_pba, D_imp, D_exp, np.transpose(D_iba))
+
 
     return (D_cba, D_pba, D_imp, D_exp)
 
