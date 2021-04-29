@@ -26,16 +26,19 @@ from pymrio.core.constants import DEFAULT_FILE_NAMES, GENERIC_NAMES, MISSING_AGG
 from pymrio.tools.iomath import (
     calc_A,
     calc_accounts,
+    calc_D_iba,
     calc_F,
     calc_F_Y,
     calc_L,
     calc_M,
+    calc_N,
     calc_S,
     calc_S_Y,
     calc_x,
     calc_x_from_L,
     calc_Z,
     recalc_M,
+    recalc_N,
     calc_B,
     calc_G,
 )
@@ -731,8 +734,13 @@ class Extension(CoreSystem):
         Direct impact (extensions) coefficients of final demand. Index as F_Y
     M : pandas.DataFrame
         Multipliers with multiindex as F
+    N : pandas.DataFrame
+        Income multipliers with multiindex as F
     D_cba : pandas.DataFrame
         Footprint of consumption,  further specification with
+        _reg (per region) or _cap (per capita) possible
+    D_iba : pandas.DataFrame
+        Footprint of primary income,  further specification with
         _reg (per region) or _cap (per capita) possible
     D_pba : pandas.DataFrame
         Territorial accounts, further specification with _reg (per region) or
@@ -769,7 +777,9 @@ class Extension(CoreSystem):
         S=None,
         S_Y=None,
         M=None,
+        N=None,
         D_cba=None,
+        D_iba=None,
         D_pba=None,
         D_imp=None,
         D_exp=None,
@@ -783,7 +793,9 @@ class Extension(CoreSystem):
         self.S = S
         self.S_Y = S_Y
         self.M = M
+        self.N = N
         self.D_cba = D_cba
+        self.D_iba = D_iba
         self.D_pba = D_pba
         self.D_imp = D_imp
         self.D_exp = D_exp
@@ -799,14 +811,17 @@ class Extension(CoreSystem):
         self.__basic__ = ["F"]
         self.__D_accounts__ = [
             "D_cba",
+            "D_iba",
             "D_pba",
             "D_imp",
             "D_exp",
             "D_cba_reg",
+            "D_iba_reg",
             "D_pba_reg",
             "D_imp_reg",
             "D_exp_reg",
             "D_cba_cap",
+            "D_iba_cap",
             "D_pba_cap",
             "D_imp_cap",
             "D_exp_cap",
@@ -815,17 +830,20 @@ class Extension(CoreSystem):
             "S",
             "S_Y",
             "M",
+            "N",
             "D_cba_reg",
+            "D_iba_reg",
             "D_pba_reg",
             "D_imp_reg",
             "D_exp_reg",
             "D_cba_cap",
+            "D_iba_cap",
             "D_pba_cap",
             "D_imp_cap",
             "D_exp_cap",
         ]
 
-        self.__coefficients__ = ["S", "S_Y", "M"]
+        self.__coefficients__ = ["S", "S_Y", "M", "N"]
 
         # check if all accounts are available
         for acc in self.__D_accounts__:
@@ -835,7 +853,7 @@ class Extension(CoreSystem):
     def __str__(self):
         return super().__str__("Extension {} with parameters: ").format(self.name)
 
-    def calc_system(self, x, Y, Y_agg=None, L=None,G=None, population=None):
+    def calc_system(self, x, Y, Y_agg=None, L=None, population=None):
         """Calculates the missing part of the extension plus accounts
 
         This method allows to specify an aggregated Y_agg for the
@@ -870,10 +888,6 @@ class Extension(CoreSystem):
         L : pandas.DataFrame or numpy.array, optional
             Leontief input output table L. If this is not given,
             the method recalculates M based on D_cba (must be present in
-            the extension).
-        G : pandas.DataFrame or numpy.array, optional
-            Ghosh input output table G. If this is not given,
-            the method recalculates M based on D_iba (must be present in
             the extension).
         population : pandas.DataFrame or np.array, optional
             Row vector with population per region
@@ -1034,8 +1048,8 @@ class Extension(CoreSystem):
         return self
 
     #GLT -> a adapter
-    def calc_D_iba(self, x, Y, V, Y_agg=None, L=None,G=None, population=None):
-        """Calculates the missing part of the extension plus accounts
+    def calc_income_based(self, x, V, V_agg=None, G=None, population=None):
+        """Calculates the income-based part of the extension plus accounts
 
         This method allows to specify an aggregated Y_agg for the
         account calculation (see Y_agg below). However, the full Y needs
@@ -1044,12 +1058,11 @@ class Extension(CoreSystem):
         Calculates:
 
         - for each sector and country:
-            S, S_Y (if F_Y available), M, D_cba, D_pba_sector, D_imp_sector,
-            D_exp_sector
+            N, D_iba, D_iba_sector
         - for each region:
-            D_cba_reg, D_pba_reg, D_imp_reg, D_exp_reg,
+            D_iba_reg
         - for each region (if population vector is given):
-            D_cba_cap, D_pba_cap, D_imp_cap, D_exp_cap
+            D_iba_cap
 
         Notes
         -----
@@ -1060,16 +1073,12 @@ class Extension(CoreSystem):
         ----------
         x : pandas.DataFrame or numpy.array
             Industry output column vector
-        Y : pandas.DataFrame or numpy.arry
-            Full final demand array
-        Y_agg : pandas.DataFrame or np.array, optional
-            The final demand aggregated (one category per country).  Can be
-            used to restrict the calculation of CBA of a specific category
-            (e.g. households). Default: y is aggregated over all categories
-        L : pandas.DataFrame or numpy.array, optional
-            Leontief input output table L. If this is not given,
-            the method recalculates M based on D_cba (must be present in
-            the extension).
+        V : pandas.DataFrame or numpy.arry
+            Full value-added array
+        V_agg : pandas.DataFrame or np.array, optional
+            The value added aggregated (one category per country).  Can be
+            used to restrict the calculation of IBA of a specific category
+            (e.g. Compensation of employees). Default: y is aggregated over all categories
         G : pandas.DataFrame or numpy.array, optional
             Ghosh input output table G. If this is not given,
             the method recalculates M based on D_iba (must be present in
@@ -1078,130 +1087,65 @@ class Extension(CoreSystem):
             Row vector with population per region
         """
 
-        if Y_agg is None:
+        if V_agg is None:
             try:
-                Y_agg = Y.sum(level="region", axis=1).reindex(
+                V_agg = V.sum(level="region", axis=1).reindex(
                     self.get_regions(), axis=1
                 )
 
             except (AssertionError, KeyError):
-                Y_agg = Y.sum(
+                V_agg = V.sum(
                     level=0,
                     axis=1,
                 ).reindex(self.get_regions(), axis=1)
 
-        y_vec = Y.sum(axis=0)
 
-        if self.F is None:
-            self.F = calc_F(self.S, x)
-            logging.debug("{} - F calculated".format(self.name))
-
-        if self.S is None:
-            self.S = calc_S(self.F, x)
-            logging.debug("{} - S calculated".format(self.name))
-
-        if (self.F_Y is None) and (self.S_Y is not None):
-            self.F_Y = calc_F_Y(self.S_Y, y_vec)
-            logging.debug("{} - F_Y calculated".format(self.name))
-
-        if (self.S_Y is None) and (self.F_Y is not None):
-            self.S_Y = calc_S_Y(self.F_Y, y_vec)
-            logging.debug("{} - S_Y calculated".format(self.name))
-
-        if self.M is None:
-            if L is not None:
-                self.M = calc_M(self.S, L)
-                logging.debug("{} - M calculated based on L".format(self.name))
+        if self.N is None:
+            if G is not None:
+                self.N = calc_N(self.S, G)
+                logging.debug("{} - N calculated based on G".format(self.name))
             else:
                 try:
-                    self.M = recalc_M(
-                        self.S, self.D_cba, Y=Y_agg, nr_sectors=self.get_sectors().size
+                    self.N = recalc_N(
+                        self.S, self.D_iba, V=V_agg, nr_sectors=self.get_sectors().size
                     )
                     logging.debug(
-                        "{} - M calculated based on " "D_cba and Y".format(self.name)
+                        "{} - N calculated based on " "D_iba and V".format(self.name)
                     )
                 except Exception as ex:
                     logging.debug(
-                        "Recalculation of M not possible - cause: {}".format(ex)
+                        "Recalculation of N not possible - cause: {}".format(ex)
                     )
 
-        F_Y_agg = 0
-        if self.F_Y is not None:
-            # F_Y_agg = ioutil.agg_columns(
-            # ext['F_Y'], self.get_Y_categories().size)
-            try:
-                F_Y_agg = self.F_Y.sum(level="region", axis=1).reindex(
-                    self.get_regions(), axis=1
-                )
-            except (AssertionError, KeyError):
-                F_Y_agg = self.F_Y.sum(level=0, axis=1).reindex(
-                    self.get_regions(), axis=1
-                )
 
         if (
-            (self.D_cba is None)
-            or (self.D_pba is None)
-            or (self.D_imp is None)
-            or (self.D_exp is None)
+            (self.D_iba is None)
         ):
-            if L is None:
-                logging.debug("Not possilbe to calculate D accounts - L not present")
+            if G is None:
+                logging.debug("Not possilbe to calculate D accounts - G not present")
                 return
             else:
-                self.D_cba, self.D_pba, self.D_imp, self.D_exp = calc_accounts(
-                    self.S, L, Y_agg, self.get_sectors().size
+                self.D_iba = calc_D_iba(
+                    self.S, G, V_agg, self.get_sectors().size
                 )
-                logging.debug("{} - Accounts D calculated".format(self.name))
+                logging.debug("{} - Accounts D_iba calculated".format(self.name))
 
         # aggregate to country
         if (
-            (self.D_cba_reg is None)
-            or (self.D_pba_reg is None)
-            or (self.D_imp_reg is None)
-            or (self.D_exp_reg is None)
+            (self.D_iba_reg is None)
         ):
             try:
-                self.D_cba_reg = (
-                    self.D_cba.sum(level="region", axis=1).reindex(
+                self.D_iba_reg = (
+                    self.D_iba.sum(level="region", axis=1).reindex(
                         self.get_regions(), axis=1
                     )
-                    + F_Y_agg
                 )
             except (AssertionError, KeyError):
-                self.D_cba_reg = (
-                    self.D_cba.sum(level=0, axis=1).reindex(self.get_regions(), axis=1)
-                    + F_Y_agg
-                )
-            try:
-                self.D_pba_reg = (
-                    self.D_pba.sum(level="region", axis=1).reindex(
-                        self.get_regions(), axis=1
-                    )
-                    + F_Y_agg
-                )
-            except (AssertionError, KeyError):
-                self.D_pba_reg = (
-                    self.D_pba.sum(level=0, axis=1).reindex(self.get_regions(), axis=1)
-                    + F_Y_agg
-                )
-            try:
-                self.D_imp_reg = self.D_imp.sum(level="region", axis=1).reindex(
-                    self.get_regions(), axis=1
-                )
-            except (AssertionError, KeyError):
-                self.D_imp_reg = self.D_imp.sum(level=0, axis=1).reindex(
-                    self.get_regions(), axis=1
-                )
-            try:
-                self.D_exp_reg = self.D_exp.sum(level="region", axis=1).reindex(
-                    self.get_regions(), axis=1
-                )
-            except (AssertionError, KeyError):
-                self.D_exp_reg = self.D_exp.sum(level=0, axis=1).reindex(
-                    self.get_regions(), axis=1
+                self.D_iba_reg = (
+                    self.D_iba.sum(level=0, axis=1).reindex(self.get_regions(), axis=1)
                 )
 
-            logging.debug("{} - Accounts D for regions calculated".format(self.name))
+            logging.debug("{} - Accounts D_iba for regions calculated".format(self.name))
 
         # calc accounts per capita if population data is available
         if population is not None:
@@ -1214,22 +1158,13 @@ class Extension(CoreSystem):
                 population = population.values
 
             if (
-                (self.D_cba_cap is None)
-                or (self.D_pba_cap is None)
-                or (self.D_imp_cap is None)
-                or (self.D_exp_cap is None)
+                (self.D_iba_cap is None)
             ):
-                self.D_cba_cap = self.D_cba_reg.dot(np.diagflat(1.0 / population))
-                self.D_pba_cap = self.D_pba_reg.dot(np.diagflat(1.0 / population))
-                self.D_imp_cap = self.D_imp_reg.dot(np.diagflat(1.0 / population))
-                self.D_exp_cap = self.D_exp_reg.dot(np.diagflat(1.0 / population))
+                self.D_iba_cap = self.D_iba_reg.dot(np.diagflat(1.0 / population))
 
-                self.D_cba_cap.columns = self.D_cba_reg.columns
-                self.D_pba_cap.columns = self.D_pba_reg.columns
-                self.D_imp_cap.columns = self.D_imp_reg.columns
-                self.D_exp_cap.columns = self.D_exp_reg.columns
+                self.D_iba_cap.columns = self.D_iba_reg.columns
 
-                logging.debug("{} - Accounts D per capita calculated".format(self.name))
+                logging.debug("{} - Accounts D_iba per capita calculated".format(self.name))
         return self
 
     def plot_account(
@@ -1913,7 +1848,10 @@ class IOSystem(CoreSystem):
         self,
         Z=None,
         Y=None,
+        V=None,
         A=None,
+        B=None,
+        G=None,
         x=None,
         L=None,
         unit=None,
@@ -1930,9 +1868,12 @@ class IOSystem(CoreSystem):
         """ Init function - see docstring class """
         self.Z = Z
         self.Y = Y
+        self.V = V
         self.x = x
         self.A = A
+        self.B = B
         self.L = L
+        self.G = G
         self.unit = unit
         self.population = population
 
@@ -2042,13 +1983,17 @@ class IOSystem(CoreSystem):
             self.meta._add_modify("Leontief matrix L calculated")
                     
         ##GLT
-        self.B = calc_B(self.Z, self.x)
-        self.G = calc_G(self.B)
-        # Calcul de V vecteur, si V n'existe pas en tant que matrice (pour permettre le calcul de calc_D_iba)?
+        if self.B is None:
+            self.B = calc_B(self.Z, self.x)
+            self.meta._add_modify("Coefficient matrix B calculated")
+
+        if self.G is None:
+            self.G = calc_G(self.B)
+            self.meta._add_modify("Ghosh matrix G calculated")
 
         return self
 
-    def calc_extensions(self, extensions=None, Y_agg=None):
+    def calc_extensions(self, extensions=None, Y_agg=None, V_agg=None):
         """Calculates the extension and their accounts
 
         For the calculation, y is aggregated across specified y categories
@@ -2080,8 +2025,11 @@ class IOSystem(CoreSystem):
                 x=self.x, Y=self.Y, L=self.L, Y_agg=Y_agg, population=self.population
             )
             # GLT
-            # if self.V: and ext.F_Y_Sec
-            #     ext.calc_D_iba()
+            #if value added and F_Y_sec are defined, then the D_iba can be computed for the extension
+            #for the moment, conditions on V only, as role F_Y_sec is not settled
+            if not (self.V is None):
+            #if not (self.V is None or ext.F_Y_Sec is None):
+                 ext.calc_income_based(x = self.x, V=self.V, G=self.G, V_agg=V_agg, population=self.population)
                 
         return self
 

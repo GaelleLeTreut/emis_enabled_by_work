@@ -290,6 +290,26 @@ def calc_M(S, L):
     """
     return S.dot(L)
 
+def calc_N(S, G):
+    """Calculate multipliers of the extensions
+
+    Parameters
+    ----------
+    G : pandas.DataFrame or numpy.array
+        Ghosh input output table G
+    S : pandas.DataFrame or numpy.array
+        Direct impact coefficients
+
+    Returns
+    -------
+    pandas.DataFrame or numpy.array
+        Multipliers N
+        The type is determined by the type of D.
+        If DataFrame index/columns as D
+
+    """
+    return S.dot(G)
+
 
 def calc_e(M, Y):
     """Calculate total impacts (footprints of consumption Y)
@@ -348,8 +368,41 @@ def recalc_M(S, D_cba, Y, nr_sectors):
 
     return M
 
+def recalc_N(S, D_iba, V, nr_sectors):
+    """Calculate Nultipliers based on footprints.
 
-def calc_accounts(S, L, Y, nr_sectors, G=None, value_added=None):
+    Parameters
+    ----------
+    D_iba : pandas.DataFrame or numpy array
+        Footprint per sector and country
+    V : pandas.DataFrame or numpy array
+        Final demand: aggregated across categories or just one category, one
+        column per country. This will be diagonalized per country block.
+        The diagonolized form must be invertable for this method to work.
+    nr_sectors : int
+        Number of sectors in the NRIO
+
+    Returns
+    -------
+
+    pandas.DataFrame or numpy.array
+        Nultipliers N
+        The type is determined by the type of D_iba.
+        If DataFrame index/columns as D_iba
+
+
+    """
+
+    V_diag = ioutil.diagonalize_blocks(V.values, blocksize=nr_sectors)
+    V_inv = np.linalg.inv(V_diag)
+    N = D_iba.dot(V_inv)
+    if type(D_iba) is pd.DataFrame:
+        N.columns = D_iba.columns
+        N.index = D_iba.index
+
+    return N
+
+def calc_accounts(S, L, Y, nr_sectors):
     """Calculate sector specific cba and pba based accounts, imp and exp accounts
 
     The total industry output x for the calculation
@@ -371,7 +424,7 @@ def calc_accounts(S, L, Y, nr_sectors, G=None, value_added=None):
     Returns
     -------
     Tuple
-        (D_cba, D_pba, D_imp, D_exp, D_iba)
+        (D_cba, D_pba, D_imp, D_exp)
 
         Format: D_row x L_col (=nr_countries*nr_sectors)
 
@@ -381,7 +434,6 @@ def calc_accounts(S, L, Y, nr_sectors, G=None, value_added=None):
                       the country per sector
         - D_exp       Total factor use in one country to satisfy final demand
                       in all other countries (per sector)
-        - D_iba        Income-based footprints per sector and country
     """
     # diagonalize each sector block per country
     # this results in a disaggregated y with final demand per country per
@@ -409,24 +461,48 @@ def calc_accounts(S, L, Y, nr_sectors, G=None, value_added=None):
     D_exp = pd.DataFrame(
         S.values * x_exp.reshape((1, -1)), index=S.index, columns=S.columns
     )
-        
-    # Income-based emissions
-    #Q1 = comment sait-on que D_cba -and others- sont dans io(self).satellite et non dans io? = > c'est la fonction calc_extension qui fait ca : elle calcule D_cba and co pour la liste d'extension qui par défaut n'est que 'satellite
-    #Q2 = comment mettre une condition sur la présence de value_added et de G dans l'extension ?
-    if (
-            (value_added is not None)
-            and (G is not None)
-        ):
-            S = S.values
-            S = S.reshape(-1,1)
-            S = np.transpose(S)
-            iec = S.dot(G)       
-            D_iba = pd.DataFrame(iec.dot(np.transpose(value_added)), index = value_added.columns, columns= value_added.index )
-            del iec
-            return (D_cba, D_pba, D_imp, D_exp, np.transpose(D_iba))
-
 
     return (D_cba, D_pba, D_imp, D_exp)
+
+#GLT
+def calc_D_iba(S, G, V, nr_sectors):
+    """Calculate sector specific cba and pba based accounts, imp and exp accounts
+
+    The total industry output x for the calculation
+    is recalculated from L and y
+
+    Parameters
+    ----------
+    G : pandas.DataFrame
+        Ghosh input output table L
+    S : pandas.DataFrame
+        Direct impact coefficients
+    V : pandas.DataFrame
+        Value added: aggregated across categories or just one category, one
+        column per country
+    nr_sectors : int
+        Number of sectors in the MRIO
+
+
+    Returns
+    -------
+    Value
+        D_iba
+
+        Format: D_row x L_col (=nr_countries*nr_sectors)
+
+        - D_iba        Income-based footprints per sector and country
+    """
+    # diagonalize each sector block per country
+    # this results in a disaggregated y with final demand per country per
+    # sector in one column
+    V_diag = ioutil.diagonalize_blocks(V.values, blocksize=nr_sectors)
+    x_diag = G.dot(V_diag)
+    x_tot = x_diag.values.sum(1)
+    del V_diag
+
+    D_iba = pd.DataFrame(S.values.dot(x_diag), index=S.index, columns=S.columns)
+    return D_iba
 
 def calc_B(Z, x):
     """Calculate the B matrix (Ghosh) from Z and x
