@@ -19,7 +19,7 @@ import utils as ut
 import matplotlib.pyplot as plt
 import seaborn as sns
 
-this_file = 'Inc_Based.py'
+this_file = 'income_based_intensity.py'
 ##########################
 ###### Paths 
 ##########################
@@ -46,7 +46,9 @@ OUTPUTS_PATH = path + os.sep + output_folder + os.sep
 #           'font.family' : 'lmodern',
 #         #  'text.latex.unicode': True,
 #           }
-# plt.rcParams.update(params)
+params = {'text.usetex':True,
+        'text.latex.preamble':r"\usepackage{eurosym}"}
+plt.rcParams.update(params)
 
 ##########################
 ###### Chargement de la base MRIO
@@ -67,24 +69,48 @@ io_orig =  pymrio.parse_exiobase3(exiobase_storage)
 ### Repartition de la combustion des ménages MtCO2 (désagrégation suivant coefficient emissions IMACLIM2010)
 F_Y_sec = pd.read_csv(DATA_PATH + 'F_Y_sec.txt', header=[0,1], index_col=0, sep="\t")
 
+#allocate impact of F_Y_sec to regions of origin proportionaly to origin of final demand
+sum_Y_on_region_of_origin = io_orig.Y.sum(level='sector')
+#first attempt with Kronecker product but this is actually useless
+##Kronecker product with index regions
+#nb_regions = len(io_orig.get_regions())
+#kron_sum_Y_on_region_of_origin =pd.concat([sum_Y_on_region_of_origin] * nb_regions, axis=0, keys=io_orig.get_regions(),names=['region','category','sub_category','sector'])
+#kron_F_Y_sec =pd.concat([F_Y_sec] * nb_regions, axis=0, keys=io_orig.get_regions(),names=['region','sector'])
+#F_Y_sec_and_reg_2 = (io_orig.Y / kron_sum_Y_on_region_of_origin) * kron_F_Y_sec
+#F_Y_sec_and_reg_2.fillna(0, inplace =True)
+#F_Y_sec_and_reg_2 = F_Y_sec_and_reg_2.reorder_levels(['region', 'category', 'sub_category', 'sector']).sort_index()
+
+F_Y_sec_and_reg = (io_orig.Y / sum_Y_on_region_of_origin) * F_Y_sec
+F_Y_sec_and_reg.fillna(0, inplace =True)
+#aggregation work only if index are region, sector, so drop category and sub_category and reorder
+F_Y_sec_and_reg = F_Y_sec_and_reg.droplevel(['category', 'sub_category']).reorder_levels(['region', 'sector'])
+
+#compare solution with and without Kronecker product
+#df=(F_Y_sec_and_reg - F_Y_sec_and_reg_2)**2
+#df.sum(axis=0)
+
+#reaggregate: we indeed find back F_Y
+#F_Y_sec_reagg = F_Y_sec_and_reg.groupby(level='sector',axis=0).sum()
+#look non zero terms
+#F_Y_sec_reagg[F_Y_sec_reagg[('FR','Households')] != 0 ]
+
 ## chargement des valeurs de base
 io_orig.calc_all()
 
+io_orig.CO2_emissions.F_Y_sec_and_reg = F_Y_sec_and_reg
 
 ##########################
 ###### AGGREGATION PRE-CALCULATION
 ##########################
-# Correspondance matrix from 200 sectos to A35 (3 sectors are not described) 
-sec_agg_matrix = np.array([
-[1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
-[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
-[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]
-])
+# test correspondance matrix from 200 sectos to 3 random sectors
+#sec_agg_matrix = np.array([
+#[1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+#[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+#[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]
+#])
 
 # Correspondance au plus proche de A38 ( 35 sectors)
 corresp_table = pd.read_csv(DATA_PATH + 'exiobase_A38.csv', comment='#',header=[0,1], index_col=0, sep=';')
-sec_label = ['sector label', np.array(corresp_table.columns.get_level_values(0))]
-sec_name = ['sector name', np.array(corresp_table.columns.get_level_values(1))]
 corresp_table=np.transpose(corresp_table)
 
 #sector_agg = sec_agg_matrix
@@ -93,6 +119,7 @@ sector_agg = corresp_table.values
 io_orig.aggregate(sector_agg=sector_agg,sector_names = list(corresp_table.index.get_level_values(0)))
 #io_new = io_orig.aggregate(sector_agg=np.transpose(corresp_table.values),sector_names = list(corresp_table.columns),inplace=False)
 
+#can be suppressed now
 ## Agrégation des emissions directes
 F_Y_sec = np.transpose(F_Y_sec).dot(np.transpose(sector_agg))
 F_Y_sec.columns = io_orig.get_sectors()
@@ -101,7 +128,7 @@ F_Y_sec.columns = io_orig.get_sectors()
 #io_new.calc_all()
 
 ### List of regions
-region_list = list(io_orig.x.index.levels[0])
+region_list = list(io_orig.get_regions())
 
 
 ##########################
@@ -184,9 +211,17 @@ emis_comb_tot_FR =  (emis_comb_sec_FR +emis_comb_direct_FR)*1E-9
 ## New line with Total of emissions 
 io_orig.CO2_emissions.F.loc['Total',:]= io_orig.CO2_emissions.F.sum(axis=0)
 # Direct emissions (from combusition of HH) - in kgCO2 (orginal data in Mt-harmonisation with F data)
-io_orig.CO2_emissions.F_d =F_Y_sec.sum(level=[0])
+# AP: transformer les régions en colonne vers les lignes (transposition multi-index): this is actually a strong hypothesis about correlation of region of consumption and regions of origins
+io_orig.CO2_emissions.F_d =F_Y_sec.sum(level='region')
 io_orig.CO2_emissions.F_d = np.transpose(io_orig.CO2_emissions.F_d.stack().to_frame())*1e9
 io_orig.CO2_emissions.F_d.index.name='FD emissions'
+
+#this df contains the "same" as F_d (but with different hypothesis about the allocation of emission, presumably more correct) but transpose
+#df=io_orig.CO2_emissions.F_Y_sec_and_reg.sum(axis=1).to_frame(name =  'FD emissions')
+#I have to checked: whether a further transposition is necessary and whether transformation to dataFrame is necessary, then whether the units has to be changed here (hard coded way) or in the original file (presumably better)
+#answer: transposition is indeed necessary for entering calc_S function, can be obtained simply by .transpose
+#intensity by region of origin can be obtained simply by
+#pymrio.calc_S(io_orig.CO2_emissions.F_Y_sec_and_reg.sum(level='region',axis=1).transpose(), io_orig.x)
 
 ####
 ## Emission intensity (S) and emission contents
@@ -430,11 +465,12 @@ check=emis_enable_d.reset_index(inplace=True)
 plt.figure(figsize=(18, 12))
 sns.barplot(x="sector", hue="region", y="emission content", data=emis_cont_tot)
 plt.xlabel("Sector code", size=12)
-plt.ylabel("g$\mathrm{CO}_2$/euro", size=12)
+plt.ylabel("g$\mathrm{CO}_2$/\euro", size=12)
 plt.yscale('log')
 plt.title("Total emission content - France vs Rest of World", size=12)
 plt.savefig(OUTPUTS_PATH+'fig_emis_cont_FRvsRoW_tot.jpeg', bbox_inches='tight')
-plt.show()
+#plt.show()
+plt.close()
 
 ######
 ### Emission content - Histogramme FRANCE
@@ -446,10 +482,10 @@ ut.df_to_csv_with_comment(emis_cont_tot_fr, output_folder + os.sep + 'emission_c
 plt.figure(figsize=(18, 12))
 sns.barplot(x="sector", y="emission content", data=emis_cont_tot_fr,palette='deep')
 plt.xlabel("Sector code", size=12)
-plt.ylabel("gCO2/euro", size=12)
+plt.ylabel("g$\mathrm{CO}_2$/\euro", size=12)
 plt.title("Total emission content - France", size=12)
 plt.savefig(OUTPUTS_PATH+'fig_emis_cont_FR_tot.jpeg', bbox_inches='tight')
-plt.show()
+#plt.show()
 plt.close()
 
 
@@ -469,10 +505,11 @@ emis_cont_tot_decomp_fr= emis_cont_tot_decomp_fr.drop(['sector'], axis=0)
 emis_cont_tot_decomp_fr.T.plot(kind='bar', stacked=True, figsize=(18, 12))
 plt.xlabel("Sector code", size=12)
 plt.xticks(rotation=0,fontsize=12)
-plt.ylabel("gCO2/euro", size=12)
+plt.ylabel("g$\mathrm{CO}_2$/\euro", size=12)
 plt.title("Total emission content decomposition- France", size=12)
 plt.savefig(OUTPUTS_PATH+'fig_emis_cont_decomp_FR_tot.jpeg', bbox_inches='tight')
-plt.show()
+#plt.show()
+plt.close()
 
 ######
 ### Emission content - Enable emissions
@@ -487,10 +524,11 @@ for r in region_list:
     emis_enable_r.T.plot(kind='bar', stacked=True, figsize=(18, 12))
     plt.xlabel("Sector code", size=12)
     plt.xticks(rotation=0,fontsize=12)
-    plt.ylabel("gCO2/euro", size=12)
+    plt.ylabel("g$\mathrm{CO}_2$/\euro", size=12)
     plt.title("Total enabled emission decomposition - "+r, size=12)
     plt.savefig(OUTPUTS_PATH+'fig_emis_cont_enabled_'+r+'_tot.jpeg', bbox_inches='tight')
-    plt.show()
+    #plt.show()
+    plt.close()
     
 ## table to save
 share_direct_emis = pd.DataFrame(emis_cont_tot_decomp_fr.loc['Direct emis content'].div(emis_cont_tot_fr['emission content'].replace(0, np.nan).values)*100)
