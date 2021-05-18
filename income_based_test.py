@@ -20,50 +20,6 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import scipy.linalg
 
-# this_file = 'Inc_Based.py'
-# ##########################
-# ###### Paths 
-# ##########################
-# # récupérer le chemin du répertoire courant
-path = os.getcwd()
-data_folder='data'
-output_folder='outputs'
-#create data_folder if not exist
-if not os.path.exists(data_folder):
-    os.makedirs(data_folder)
-    print('Creating ' + data_folder + ' to store data')
-
-#create output_folder if not exist
-if not os.path.exists(output_folder):
-    os.makedirs(output_folder)
-    print('Creating ' + output_folder + ' to store outputs')
-
-DATA_PATH = path + os.sep + data_folder + os.sep
-OUTPUTS_PATH = path + os.sep + output_folder + os.sep
-
-# # plt.rcParams['text.latex.preamble']=[r"\usepackage{lmodern}"]
-# # params = {'text.usetex' : True,
-# #           'font.size' : 11,
-# #           'font.family' : 'lmodern',
-# #         #  'text.latex.unicode': True,
-# #           }
-# # plt.rcParams.update(params)
-
-# ##########################
-# ###### Chargement de la base MRIO
-# ##########################
-# ###### Chargement de la base EXIOBASE
-
-## Download from exiobase Zenodo
-exiobase_storage = DATA_PATH+'IOT_2015_pxp.zip'
-io_orig =  pymrio.parse_exiobase3(exiobase_storage)
-
-### Repartition de la combustion des ménages MtCO2 (désagrégation suivant coefficient emissions IMACLIM2010)
-F_Y_sec = pd.read_csv(DATA_PATH + 'F_Y_sec.txt', header=[0,1], index_col=0, sep="\t")
-
-## chargement des valeurs de base
-#io_orig.calc_all()
-
 def block_vector_to_diagonal_block_matrix(arr, blocksize):
     """Transforms an array seen as a block vector into a matrix diagonal by block
 
@@ -103,11 +59,57 @@ def block_vector_to_diagonal_block_matrix(arr, blocksize):
     return arr_diag
 
 
-################################
-#### EXTENSION FOR VALUE-ADDED
-################################
+# ##########################
+# ###### Paths 
+# ##########################
+# # récupérer le chemin du répertoire courant
+path = os.getcwd()
+data_folder='data'
+output_folder='outputs'
+#create data_folder if not exist
+if not os.path.exists(data_folder):
+    os.makedirs(data_folder)
+    print('Creating ' + data_folder + ' to store data')
 
-list_value_added= ['Taxes less subsidies on products purchased: Total',
+#create output_folder if not exist
+if not os.path.exists(output_folder):
+    os.makedirs(output_folder)
+    print('Creating ' + output_folder + ' to store outputs')
+
+DATA_PATH = path + os.sep + data_folder + os.sep
+OUTPUTS_PATH = path + os.sep + output_folder + os.sep
+
+# # plt.rcParams['text.latex.preamble']=[r"\usepackage{lmodern}"]
+# # params = {'text.usetex' : True,
+# #           'font.size' : 11,
+# #           'font.family' : 'lmodern',
+# #         #  'text.latex.unicode': True,
+# #           }
+# # plt.rcParams.update(params)
+
+# ##########################
+# ###### Loading MRIO database
+# ##########################
+
+# ###### Chargement de la base EXIOBASE
+light_exiobase_folder ='IOT_2015_pxp_GHG_emissions'
+full_exiobase_storage = DATA_PATH+'IOT_2015_pxp.zip'
+
+## Download from exiobase Zenodo
+## If the light database doesn't exist already, it loads the full database
+if not os.path.exists(data_folder + os.sep + light_exiobase_folder):
+    print('Loading full exiobase database...')
+    io_orig =  pymrio.parse_exiobase3(full_exiobase_storage)
+    print('Loaded')
+
+## chargement des valeurs de base
+    #io_orig.calc_all()
+
+### Repartition de la combustion des ménages MtCO2 (désagrégation suivant coefficient emissions IMACLIM2010)
+    F_Y_sec = pd.read_csv(DATA_PATH + 'F_Y_sec.txt', header=[0,1], index_col=0, sep="\t")
+
+#### Creating extension for FOR VALUE-ADDED
+    list_value_added= ['Taxes less subsidies on products purchased: Total',
        'Other net taxes on production',
        'Compensation of employees; wages, salaries, & employers\' social contributions: Low-skilled',
        'Compensation of employees; wages, salaries, & employers\' social contributions: Medium-skilled',
@@ -117,89 +119,39 @@ list_value_added= ['Taxes less subsidies on products purchased: Total',
        'Operating surplus: Royalties on resources',
        'Operating surplus: Remaining net operating surplus']
 
-df = io_orig.satellite.F.loc[list_value_added].transpose()
-df.columns.name='category'
+    df = io_orig.satellite.F.loc[list_value_added].transpose()
+    df.columns.name='category'
 
 #df created only to get correct indices
-kron_df = pd.concat([df] * io_orig.get_regions().size, axis=1, keys=io_orig.get_regions(),names=['region','category'])
+    kron_df = pd.concat([df] * io_orig.get_regions().size, axis=1, keys=io_orig.get_regions(),names=['region','category'])
 #vector of value-added separated by countries
-v = pd.DataFrame( block_vector_to_diagonal_block_matrix(df.values, io_orig.get_sectors().size), index=kron_df.index, columns=kron_df.columns)
-
+    v = pd.DataFrame( block_vector_to_diagonal_block_matrix(df.values, io_orig.get_sectors().size), index=kron_df.index, columns=kron_df.columns)
 ##check if things have not been mixed up
 #(v.sum(level='category',axis=1) == df).all()
+    io_orig.V = v
+    
+# ###### Diagonalize the GHG stressor to have the origins of impacts
+    io_orig.GHG_emissions = io_orig.impacts.diag_stressor('GHG emissions (GWP100) | Problem oriented approach: baseline (CML, 2001) | GWP100 (IPCC, 2007)')
 
+##deleting unecessary satellite accounts
+    del io_orig.satellite
+    del io_orig.impacts
+    del io_orig.IOT_2015_pxp
+    
+## saving the pymrio database with the satellite account for GHG emissions and value-added only 
+    os.makedirs(data_folder + os.sep + light_exiobase_folder)
+    io_orig.save_all(data_folder + os.sep + light_exiobase_folder)
+    io_test= pymrio.load_all(data_folder + os.sep + light_exiobase_folder)
+  
+## If the light database does exist, it loads it instead of the full database
+else: 
+    print('Loading part of the exiobase database...')
+    io_orig = pymrio.load_all(data_folder + os.sep + light_exiobase_folder)
+    print('Loaded')
 
-io_orig.V = v
-
-#################################
-##### EXTENSION FOR CO2_emissions equivalent
-#################################
-##### 1/ Aggregating All CO2 and All CH4
-### No comportement available for stressors
-### https://pymrio.readthedocs.io/en/latest/notebooks/advanced_group_stressors.html
-#groups = io_orig.satellite.get_index(as_dict=True, grouping_pattern = {'CO2.*': 'CO2','CH4.*': 'CH4'})
-#io_orig.satellite_agg = io_orig.satellite.copy(new_name='Aggregated CO2 CH4')		
-#
-#for df_name, df in zip(io_orig.satellite_agg.get_DataFrame(data=False, with_unit=True, with_population=False),
-#                       io_orig.satellite_agg.get_DataFrame(data=True, with_unit=True, with_population=False)):
-#    if df_name == 'unit':
-#        io_orig.satellite_agg.__dict__[df_name] = df.groupby(groups).apply(lambda x: ' & '.join(x.unit.unique()))
-#    else:
-#        io_orig.satellite_agg.__dict__[df_name] = df.groupby(groups).sum()		
-#
-#print("D_pba C02 FR in Mt:", io_orig.satellite_agg.D_pba.loc['CO2']['FR'].sum()/1e9)
-#print("D_pba CH4 FR in Mt:", io_orig.satellite_agg.D_pba.loc['CH4']['FR'].sum()/1e9)
-#
-#
-##### 2/ Converting CH4 into CO2eq - Global warming potential multiplication
-#GWP_CH4= 28
-### PROBLEM UNIT / changer dans unit par CO2eq =>dans le fichier unit ca marche pas
-#io_orig.satellite_conv= io_orig.satellite_agg.copy(new_name='Test CO2eq')	
-#for df_name, df in zip(io_orig.satellite_conv.get_DataFrame(data=False, with_unit=True, with_population=False),
-#                       io_orig.satellite_conv.get_DataFrame(data=True, with_unit=True, with_population=False)):
-#    if df_name == 'unit':
-#        io_orig.satellite_conv.__dict__[df_name]['CH4']='kg CO2-eq'
-#        io_orig.satellite_conv.unit.to_excel(OUTPUTS_PATH+'units_eq.xlsx')
-#    else:
-#        io_orig.satellite_conv.__dict__[df_name].loc['CH4'] = df.loc['CH4']*GWP_CH4
-#        
-#print("D_pba C02 FR in Mt:", io_orig.satellite_conv.D_pba.loc['CO2']['FR'].sum()/1e9)
-#print("D_pba CH4 FR in Mt:", io_orig.satellite_conv.D_pba.loc['CH4']['FR'].sum()/1e9)
-#
-##### 3/ Grouping CH4 and CO2
-#groups_CO2 = io_orig.satellite_conv.get_index(as_dict=True, grouping_pattern = {'CO2.*':'CO2eq','CH4.*':'CO2eq'})
-#io_orig.satellite_eq = io_orig.satellite_conv.copy(new_name='Aggregated CO2 CH4')		
-#
-#for df_name, df in zip(io_orig.satellite_eq.get_DataFrame(data=False, with_unit=True, with_population=False),
-#                       io_orig.satellite_eq.get_DataFrame(data=True, with_unit=True, with_population=False)):
-#    if df_name == 'unit':
-#        io_orig.satellite_eq.__dict__[df_name] = df.groupby(groups_CO2).apply(lambda x: ' & '.join(x.unit.unique()))
-#    else:
-#        io_orig.satellite_eq.__dict__[df_name] = df.groupby(groups_CO2).sum()	
-#
-#
-#print("D_pba C02eq FR in Mt:", io_orig.satellite_eq.D_pba.loc['CO2eq']['FR'].sum()/1e9)
-#
-##### 4/ Extension for the CO2_emission
-#io_orig.CO2_emissions = io_orig.satellite_eq.copy(new_name='CO2 emissions')		
-#for df_name, df in zip(io_orig.CO2_emissions.get_DataFrame(data=False, with_unit=True, with_population=False),
-#                       io_orig.CO2_emissions.get_DataFrame(data=True, with_unit=True, with_population=False)):
-#    io_orig.CO2_emissions.__dict__[df_name] = df.loc['CO2eq']	
-#
-#print("D_pba C02eq FR in Mt:", io_orig.CO2_emissions.D_pba.loc['FR'].sum()/1e9)
-#
-#### Supprimer les extension intermediaire
-#del io_orig.satellite_conv
-#del io_orig.satellite_eq
-#
-#
-#### New extension for Only CO2eq
-#print(io_orig.satellite_agg.D_cba.loc['CO2']['FR']/1e9)
-
-#diagonalize the GHG stressor to have the origins of impacts
-io_orig.GHG_emissions = io_orig.impacts.diag_stressor('GHG emissions (GWP100) | Problem oriented approach: baseline (CML, 2001) | GWP100 (IPCC, 2007)')
-
-#at this point we would like to save io_orig with keeping only GHG_emissions as a satellite account (thus removing satellite and impacts, that are no longer needed), and also v. If this saving file already exists, then upload it instead of exiobase_storage: this should speed up the process
+##########################
+###### CALCULATION
+##########################
 
 #then we could simply a calc_all, I split here to avoid calculations in the huge extensions
 io_orig.calc_system()
@@ -209,5 +161,16 @@ io_orig.GHG_emissions.calc_income_based(x = io_orig.x, V=io_orig.V, G=io_orig.G,
 #io_orig.GHG_emissions.D_iba.sum(axis=0,level='region')
 #pour avoir les D_iba avec seulement le pays pour l'origine des émissions
 
-#### Ajouter le D_iba dans pymrio.Extension? 
-#io_orig2 =  pymrio.parse_exiobase3(exiobase_storage)
+
+##########################
+###### AGGREGATION POST CALCULATION
+##########################
+# Correspondance au plus proche de A38 ( 35 sectors)
+corresp_table = pd.read_csv(DATA_PATH + 'exiobase_A38.csv', comment='#',header=[0,1], index_col=0, sep=';')
+corresp_table=np.transpose(corresp_table)
+
+sector_agg = corresp_table.values
+io_orig.aggregate(sector_agg=sector_agg,sector_names = list(corresp_table.index.get_level_values(0)))
+## To fix : V is not aggregated
+
+
