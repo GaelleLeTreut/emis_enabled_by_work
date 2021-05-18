@@ -1897,9 +1897,9 @@ class IOSystem(CoreSystem):
             setattr(self, ext, Extension(**kwargs[ext]))
 
         # Attributes needed to define the IOSystem
-        self.__non_agg_attributes__ = ["A", "L"]
+        self.__non_agg_attributes__ = ["A", "L","B","G"]
 
-        self.__coefficients__ = ["A", "L"]
+        self.__coefficients__ = ["A", "L","B","G"]
         self.__basic__ = ["Z", "Y"]  # minimal necessary to calc the rest
 
     def __str__(self):
