@@ -141,13 +141,23 @@ if not os.path.exists(data_folder + os.sep + light_exiobase_folder):
 ## saving the pymrio database with the satellite account for GHG emissions and value-added only 
     os.makedirs(data_folder + os.sep + light_exiobase_folder)
     io_orig.save_all(data_folder + os.sep + light_exiobase_folder)
-    io_test= pymrio.load_all(data_folder + os.sep + light_exiobase_folder)
   
 ## If the light database does exist, it loads it instead of the full database
 else: 
     print('Loading part of the exiobase database...')
     io_orig = pymrio.load_all(data_folder + os.sep + light_exiobase_folder)
     print('Loaded')
+    
+##########################
+###### AGGREGATION PRE CALCULATION
+##########################
+# Correspondance au plus proche de A38 ( 35 sectors)
+# corresp_table = pd.read_csv(DATA_PATH + 'exiobase_A38.csv', comment='#',header=[0,1], index_col=0, sep=';')
+# corresp_table=np.transpose(corresp_table)
+
+# sector_agg = corresp_table.values
+# io_orig.aggregate(sector_agg=sector_agg,sector_names = list(corresp_table.index.get_level_values(0)))   
+    
 
 ##########################
 ###### CALCULATION
@@ -165,12 +175,67 @@ io_orig.GHG_emissions.calc_income_based(x = io_orig.x, V=io_orig.V, G=io_orig.G,
 ##########################
 ###### AGGREGATION POST CALCULATION
 ##########################
-# Correspondance au plus proche de A38 ( 35 sectors)
+# Aggregation into 35 sectors (closest correspondance with A38 nomenclature)
 corresp_table = pd.read_csv(DATA_PATH + 'exiobase_A38.csv', comment='#',header=[0,1], index_col=0, sep=';')
 corresp_table=np.transpose(corresp_table)
-
 sector_agg = corresp_table.values
-io_orig.aggregate(sector_agg=sector_agg,sector_names = list(corresp_table.index.get_level_values(0)))
+
+## Aggregation into two regions: FR and RoW
+region_table = pd.read_csv(DATA_PATH + 'exiobase_FRvsRoW.csv', comment='#', index_col=0, sep=';')
+region_table=np.transpose(region_table)
+region_agg = region_table.values
+
+io_orig.aggregate(region_agg=region_agg, sector_agg=sector_agg, region_names = list(region_table.index.get_level_values(0)), sector_names = list(corresp_table.index.get_level_values(0)))
 ## To fix : V is not aggregated
+
+## Do we really need to put here a calc all to reassess the variables that are not aggregated? A, B L and G are not calculted...
+io_orig.calc_all()
+
+
+##########################
+###### Emission content
+##########################
+inc_emis_content = pymrio.calc_N(io_orig.GHG_emissions.S, io_orig.G)*1e-3
+
+
+######
+### Décomposition  Emission  content (in gCO2/euro)  = S + SB + SB^2 + ..
+######
+inc_emis_content_direct = io_orig.GHG_emissions.S*1e-3
+inc_emis_content_fo = pymrio.calc_N(io_orig.GHG_emissions.S, io_orig.B)*1e-3
+inc_emis_content_so = pymrio.calc_N(io_orig.GHG_emissions.S, io_orig.B.dot(io_orig.B))*1e-3
+
+## FRANCE only 
+# emission_content_FR = np.transpose(inc_emis_content).loc[['FR']]
+# income_based_emis_FR = np.transpose(io_orig.income_based_emis).loc[['FR']]
+
+######
+### Decomposition enabled emissions (in gCO2/euro)
+######
+# emis_enable = inc_emis_content.copy()
+# for r in region_list:
+#     rest_list = list(region_list)
+#     rest_list.remove(r)
+    
+#     S_enable = io_orig.GHG_emissions.S*1e-3
+#     S_enable.loc[rest_list]=0
+#     emis_enable_r = pymrio.calc_iec(S_enable, io_orig.G)
+#     emis_enable_r.rename(index={'emission content':'emis content from '+r},inplace=True)
+#     emis_enable = emis_enable.append(emis_enable_r)
+#     del rest_list
+# emis_enable = emis_enable.drop(['emission content'])
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 

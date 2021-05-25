@@ -65,6 +65,7 @@ from pymrio.tools.iomath import (
     calc_Z_from_B,
     calc_iec,
     calc_ibe,
+    calc_N,
 )
 
 from pymrio.tools.iometadata import MRIOMetaData
