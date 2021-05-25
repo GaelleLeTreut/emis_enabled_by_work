@@ -281,6 +281,41 @@ class CoreSystem:
             logging.warn("No attributes available to get Y categories")
             return None
 
+    def get_V_categories(self, entries=None):
+        """Returns names of V cat. of the IOSystem as unique names in order
+
+        Parameters
+        ----------
+        entries : List, optional
+            If given, retuns an list with None for all values not in entries.
+
+        Returns
+        -------
+        Index
+            List of categories, None if no attribute to determine
+            list is available
+        """
+        possible_dataframes = ["V"]
+
+        for df in possible_dataframes:
+            if (df in self.__dict__) and (getattr(self, df) is not None):
+                try:
+                    ind = (
+                        getattr(self, df).columns.get_level_values("category").unique()
+                    )
+                except (AssertionError, KeyError):
+                    ind = getattr(self, df).columns.get_level_values(1).unique()
+                if entries:
+                    if type(entries) is str:
+                        entries = [entries]
+                    ind = ind.tolist()
+                    return [None if ee not in entries else ee for ee in ind]
+                else:
+                    return ind
+        else:  # pragma: no cover
+            logging.warn("No attributes available to get Y categories")
+            return None
+
     def get_index(self, as_dict=False, grouping_pattern=None):
         """Returns the index of the DataFrames in the system
 
@@ -2445,6 +2480,24 @@ class IOSystem(CoreSystem):
             index=mi_reg_sec,
             columns=mi_reg_sec,
         )
+        # Aggregate if V is there
+        if self.V is not None:
+            _Vcat_list = list(self.get_V_categories()) * region_conc.shape[0]
+            _reg_list_for_Vcat = [[r] * len(self.get_V_categories()) for r in region_names]
+            _reg_list_for_Vcat = [
+                entry for entrylist in _reg_list_for_Vcat for entry in entrylist
+            ]
+            mi_reg_Vcat = pd.MultiIndex.from_arrays(
+                [_reg_list_for_Vcat, _Vcat_list], names=["region", "category"]
+            )
+
+            conc_V = np.kron(region_conc, np.eye(len(self.get_V_categories())))
+            self.meta._add_modify("Aggregate value added V")
+            self.V = pd.DataFrame(
+                data=conc.dot(self.V).dot(conc_V.T),
+                index=mi_reg_sec,
+                columns=mi_reg_Vcat,
+            )
 
         if self.x is not None:
             # x could also be obtained from the
