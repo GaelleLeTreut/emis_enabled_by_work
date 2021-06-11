@@ -2062,9 +2062,11 @@ class IOSystem(CoreSystem):
             # GLT
             #if value added and F_Y_sec are defined, then the D_iba can be computed for the extension
             #for the moment, conditions on V only, as role F_Y_sec is not settled
-            if not (self.V is None):
+            print("testing for self.V")
+            if self.V is not None:
+                print('aggregating extensions')
             #if not (self.V is None or ext.F_Y_Sec is None):
-                 ext.calc_income_based(x = self.x, V=self.V, G=self.G, V_agg=V_agg, population=self.population)
+                ext.calc_income_based(x = self.x, V=self.V, G=self.G, V_agg=V_agg, population=self.population)
                 
         return self
 
@@ -2482,6 +2484,7 @@ class IOSystem(CoreSystem):
         )
         # Aggregate if V is there
         if self.V is not None:
+            print('aggregating self.V')
             _Vcat_list = list(self.get_V_categories()) * region_conc.shape[0]
             _reg_list_for_Vcat = [[r] * len(self.get_V_categories()) for r in region_names]
             _reg_list_for_Vcat = [
