@@ -173,6 +173,11 @@ else:
 io_orig.calc_system()
 io_orig.GHG_emissions.calc_system(x=io_orig.x, Y=io_orig.Y, L=io_orig.L, Y_agg=None, population=io_orig.population)
 io_orig.GHG_emissions.calc_income_based(x = io_orig.x, V=io_orig.V, G=io_orig.G, V_agg=None, population=io_orig.population)
+#compute zero
+V_agg = io_orig.V.sum(level=0, axis=1, ).reindex(io_orig.get_regions(), axis=1)
+io_orig.GHG_emissions.D_iba_zero_order = pymrio.tools.iomath.calc_D_iba(io_orig.GHG_emissions.S, np.identity(np.shape(io_orig.G.values)[0]), V_agg, io_orig.get_sectors().size)
+io_orig.GHG_emissions.D_iba_first_order = pymrio.tools.iomath.calc_D_iba(io_orig.GHG_emissions.S, io_orig.B, V_agg, io_orig.get_sectors().size)
+#this has to be checked if correct
 
 
 ##########################
@@ -194,7 +199,7 @@ region_list = list(io_orig.get_regions())
 
 ##### GLT  TO check
 ## Do we really need to put here a calc all to reassess the variables that are not aggregated? A, B L and G are not calculted...
-io_orig.calc_all()
+#io_orig.calc_all()
 
 
 ##########################
