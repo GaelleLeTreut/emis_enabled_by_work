@@ -105,9 +105,6 @@ if not os.path.exists(data_folder + os.sep + light_exiobase_folder):
 ## chargement des valeurs de base
     #io_orig.calc_all()
 
-### Repartition de la combustion des ménages MtCO2 (désagrégation suivant coefficient emissions IMACLIM2010)
-    F_Y_sec = pd.read_csv(DATA_PATH + 'F_Y_sec.txt', header=[0,1], index_col=0, sep="\t")
-
 #### Creating extension for FOR VALUE-ADDED
     list_value_added= ['Taxes less subsidies on products purchased: Total',
        'Other net taxes on production',
@@ -133,6 +130,14 @@ if not os.path.exists(data_folder + os.sep + light_exiobase_folder):
 # ###### Diagonalize the GHG stressor to have the origins of impacts
     io_orig.GHG_emissions = io_orig.impacts.diag_stressor('GHG emissions (GWP100) | Problem oriented approach: baseline (CML, 2001) | GWP100 (IPCC, 2007)')
 
+# ###### GHG emissions from Final Demand
+    io_orig.GHG_emissions.F_Y_tot = pd.DataFrame(io_orig.impacts.F_hh.loc['GHG emissions (GWP100) | Problem oriented approach: baseline (CML, 2001) | GWP100 (IPCC, 2007)'].groupby(axis=0,level=0).sum(),index=io_orig.impacts.F_hh.columns.levels[0]).transpose()
+    if not os.path.exists(data_folder + os.sep + "Share_F_Y_sec.csv"):
+         print('Calculating repartition key for FD emissions..')
+         exec(open("building_F_Y_sec_share.py").read())
+    else:
+        share_F_Y_sec = pd.read_csv(DATA_PATH + 'Share_F_Y_sec.csv', header=[0], index_col=0, sep=",")
+    io_orig.GHG_emissions.F_Y_sec = share_F_Y_sec * (io_orig.GHG_emissions.F_Y_tot.values/100)
 ##deleting unecessary satellite accounts
     del io_orig.satellite
     del io_orig.impacts
@@ -179,16 +184,19 @@ io_orig.GHG_emissions.D_iba_zero_order = pymrio.tools.iomath.calc_D_iba(io_orig.
 io_orig.GHG_emissions.D_iba_first_order = pymrio.tools.iomath.calc_D_iba(io_orig.GHG_emissions.S, io_orig.B, V_agg, io_orig.get_sectors().size)
 #this has to be checked if correct
 
+### to check shape .. : GHG_emissions.F_Y_sec  must be regionalized.. should be done before calc_system ?  
+io_orig.GHG_emissions.S_d =  pymrio.calc_S(np.transpose(io_orig.GHG_emissions.F_Y_sec.stack().to_frame()),io_orig.x)
+
 
 ##########################
 ###### AGGREGATION POST CALCULATION
 ##########################
-## Aggregation into 35 sectors (closest correspondance with A38 nomenclature)
+# Aggregation into 35 sectors (closest correspondance with A38 nomenclature)
 corresp_table = pd.read_csv(DATA_PATH + 'exiobase_A38.csv', comment='#',header=[0,1], index_col=0, sep=';')
 corresp_table=np.transpose(corresp_table)
 sector_agg = corresp_table.values
 
-## Aggregation into two regions: FR and RoW
+# Aggregation into two regions: FR and RoW
 region_table = pd.read_csv(DATA_PATH + 'exiobase_FRvsRoW.csv', comment='#', index_col=0, sep=';')
 region_table=np.transpose(region_table)
 region_agg = region_table.values
@@ -266,7 +274,7 @@ plt.close()
 ######
 inc_emis_cont_decomp_fr= np.transpose(inc_emis_cont_decomp.loc[('FR')])
 
-#sns.set()
+sns.set()
 inc_emis_cont_decomp_fr.T.plot(kind='bar', stacked=True, figsize=(18, 12))
 plt.xlabel("Sector code", size=12)
 plt.xticks(rotation=0,fontsize=12)
