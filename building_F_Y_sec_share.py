@@ -67,7 +67,4 @@ F_Y_sec.set_index('sector',inplace=True)
 ## Share  / repartition key to use in impacts
 # ##########################
 share_F_Y_sec = F_Y_sec.div(F_Y_sec.sum(axis=0))*100
-share_F_Y_sec.to_csv(DATA_PATH+'Share_F_Y_sec.csv')
-
-
-
+share_F_Y_sec.to_pickle(DATA_PATH+'Share_F_Y_sec.pkl')
