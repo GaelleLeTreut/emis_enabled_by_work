@@ -245,11 +245,11 @@ inc_emis_content_so = pd.DataFrame(np.transpose(pymrio.tools.iomath.recalc_N(io_
 
 ########## OLD to control if same results
 # inc_emis_content = pymrio.calc_N(io_orig.GHG_emissions.S, io_orig.G)*1e-3 = io_orig.GHG_emissions.N*1e-3
-inc_emis_cont_old = pd.DataFrame(np.transpose((io_orig.GHG_emissions.N*1e-3).sum(level=0,axis=1).sum(level=1,axis=0)).stack(),columns=['emission content'])
+# inc_emis_cont_old = pd.DataFrame(np.transpose((io_orig.GHG_emissions.N*1e-3).sum(level=0,axis=1).sum(level=1,axis=0)).stack(),columns=['emission content'])
 
-inc_emis_content_direct_old = pd.DataFrame(np.transpose((io_orig.GHG_emissions.S*1e-3).sum(level=0,axis=1).sum(level=1,axis=0)).stack(),columns=['Direct emis content'])
-inc_emis_content_fo_old = pd.DataFrame(np.transpose((pymrio.calc_N(io_orig.GHG_emissions.S, io_orig.B)*1e-3).sum(level=0,axis=1).sum(level=1,axis=0)).stack(),columns=['FO emis content'])
-inc_emis_content_so_old =pd.DataFrame(np.transpose((pymrio.calc_N(io_orig.GHG_emissions.S, io_orig.B.dot(io_orig.B))*1e-3).sum(level=0,axis=1).sum(level=1,axis=0)).stack(),columns=['SO emis content'])
+# inc_emis_content_direct_old = pd.DataFrame(np.transpose((io_orig.GHG_emissions.S*1e-3).sum(level=0,axis=1).sum(level=1,axis=0)).stack(),columns=['Direct emis content'])
+# inc_emis_content_fo_old = pd.DataFrame(np.transpose((pymrio.calc_N(io_orig.GHG_emissions.S, io_orig.B)*1e-3).sum(level=0,axis=1).sum(level=1,axis=0)).stack(),columns=['FO emis content'])
+# inc_emis_content_so_old =pd.DataFrame(np.transpose((pymrio.calc_N(io_orig.GHG_emissions.S, io_orig.B.dot(io_orig.B))*1e-3).sum(level=0,axis=1).sum(level=1,axis=0)).stack(),columns=['SO emis content'])
 ##########################################
 # inc_emis_cont_decomp = inc_emis_content_direct.copy()
 # inc_emis_cont_decomp.loc[:,'FO emis content'] = inc_emis_content_fo['FO emis content']
