@@ -217,12 +217,12 @@ sector_agg = corresp_table.values
 region_table = pd.read_csv(DATA_PATH + 'exiobase_FRvsRoW.csv', comment='#', index_col=0, sep=';')
 region_table=np.transpose(region_table)
 region_agg = region_table.values
-region_list = list(io_orig.get_regions())
 
 F_Y_sec_and_reg = io_orig.GHG_emissions.F_Y_sec_and_reg
 del io_orig.GHG_emissions.F_Y_sec_and_reg
 
 io_orig.aggregate(region_agg=region_agg, sector_agg=sector_agg, region_names = list(region_table.index.get_level_values(0)), sector_names = list(corresp_table.index.get_level_values(0)))
+region_list = list(io_orig.get_regions())
 
 ##########################
 ###### Emission content and decomposition
@@ -233,24 +233,32 @@ io_orig.aggregate(region_agg=region_agg, sector_agg=sector_agg, region_names = l
 ######
 V_agg = io_orig.V.sum(level=0, axis=1, ).reindex(io_orig.get_regions(), axis=1)
 
-inc_emis_cont = pymrio.tools.iomath.recalc_N(io_orig.GHG_emissions.S, io_orig.GHG_emission.D_iba, V_agg, io_orig.get_sectors().size)
+inc_emis_cont = pd.DataFrame(np.transpose(pymrio.tools.iomath.recalc_N(io_orig.GHG_emissions.S, io_orig.GHG_emissions.D_iba, V_agg, io_orig.get_sectors().size).sum(level=0,axis=1).sum(level=1,axis=0)*1e-3).stack(),columns=['emission content'])
 
-inc_emis_content_direct = pymrio.tools.iomath.recalc_N(io_orig.GHG_emissions.S, io_orig.GHG_emission.D_iba_zero_order, V_agg, io_orig.get_sectors().size)
+inc_emis_content_direct = pd.DataFrame(np.transpose(pymrio.tools.iomath.recalc_N(io_orig.GHG_emissions.S, io_orig.GHG_emissions.D_iba_zero_order, V_agg, io_orig.get_sectors().size).sum(level=0,axis=1).sum(level=1,axis=0)*1e-3).stack(),columns=['Direct emis content'])
 
-inc_emis_content_fo = pymrio.tools.iomath.recalc_N(io_orig.GHG_emissions.S, io_orig.GHG_emission.D_iba_first_order, V_agg, io_orig.get_sectors().size)
+inc_emis_content_fo = pd.DataFrame(np.transpose(pymrio.tools.iomath.recalc_N(io_orig.GHG_emissions.S, io_orig.GHG_emissions.D_iba_first_order, V_agg, io_orig.get_sectors().size).sum(level=0,axis=1).sum(level=1,axis=0)*1e-3).stack(),columns=['FO emis content'])
+
+## GLT : make a D_iba_second_order and then have the rest?
+inc_emis_content_so = pd.DataFrame(np.transpose(pymrio.tools.iomath.recalc_N(io_orig.GHG_emissions.S, io_orig.GHG_emissions.D_iba - io_orig.GHG_emissions.D_iba_zero_order - io_orig.GHG_emissions.D_iba_first_order, V_agg, io_orig.get_sectors().size).sum(level=0,axis=1).sum(level=1,axis=0)*1e-3).stack(),columns=['Rest emis content'])
 
 
+########## OLD to control if same results
 # inc_emis_content = pymrio.calc_N(io_orig.GHG_emissions.S, io_orig.G)*1e-3 = io_orig.GHG_emissions.N*1e-3
-inc_emis_cont = pd.DataFrame(np.transpose((io_orig.GHG_emissions.N*1e-3).sum(level=0,axis=1).sum(level=1,axis=0)).stack(),columns=['emission content'])
+inc_emis_cont_old = pd.DataFrame(np.transpose((io_orig.GHG_emissions.N*1e-3).sum(level=0,axis=1).sum(level=1,axis=0)).stack(),columns=['emission content'])
 
-inc_emis_content_direct = pd.DataFrame(np.transpose((io_orig.GHG_emissions.S*1e-3).sum(level=0,axis=1).sum(level=1,axis=0)).stack(),columns=['Direct emis content'])
-inc_emis_content_fo = pd.DataFrame(np.transpose((pymrio.calc_N(io_orig.GHG_emissions.S, io_orig.B)*1e-3).sum(level=0,axis=1).sum(level=1,axis=0)).stack(),columns=['FO emis content'])
-inc_emis_content_so =pd.DataFrame(np.transpose((pymrio.calc_N(io_orig.GHG_emissions.S, io_orig.B.dot(io_orig.B))*1e-3).sum(level=0,axis=1).sum(level=1,axis=0)).stack(),columns=['SO emis content'])
+inc_emis_content_direct_old = pd.DataFrame(np.transpose((io_orig.GHG_emissions.S*1e-3).sum(level=0,axis=1).sum(level=1,axis=0)).stack(),columns=['Direct emis content'])
+inc_emis_content_fo_old = pd.DataFrame(np.transpose((pymrio.calc_N(io_orig.GHG_emissions.S, io_orig.B)*1e-3).sum(level=0,axis=1).sum(level=1,axis=0)).stack(),columns=['FO emis content'])
+inc_emis_content_so_old =pd.DataFrame(np.transpose((pymrio.calc_N(io_orig.GHG_emissions.S, io_orig.B.dot(io_orig.B))*1e-3).sum(level=0,axis=1).sum(level=1,axis=0)).stack(),columns=['SO emis content'])
+##########################################
+# inc_emis_cont_decomp = inc_emis_content_direct.copy()
+# inc_emis_cont_decomp.loc[:,'FO emis content'] = inc_emis_content_fo['FO emis content']
+# inc_emis_cont_decomp.loc[:,'SO emis content'] = inc_emis_content_so['SO emis content']
+# inc_emis_cont_decomp.loc[:,'Rest emis content'] =inc_emis_cont['emission content'] - ( inc_emis_content_direct['Direct emis content'] + inc_emis_content_fo['FO emis content'] + inc_emis_content_so['SO emis content']) 
 
 inc_emis_cont_decomp = inc_emis_content_direct.copy()
 inc_emis_cont_decomp.loc[:,'FO emis content'] = inc_emis_content_fo['FO emis content']
-inc_emis_cont_decomp.loc[:,'SO emis content'] = inc_emis_content_so['SO emis content']
-inc_emis_cont_decomp.loc[:,'Rest emis content'] =inc_emis_cont['emission content'] - ( inc_emis_content_direct['Direct emis content'] + inc_emis_content_fo['FO emis content'] + inc_emis_content_so['SO emis content']) 
+inc_emis_cont_decomp.loc[:,'Rest emis content'] =inc_emis_cont['emission content'] - ( inc_emis_content_direct['Direct emis content'] + inc_emis_content_fo['FO emis content']) 
 
 
 ## income based emission in France in MtCO2 
