@@ -394,7 +394,15 @@ def recalc_N(S, D_iba, V, nr_sectors):
     """
 
     V_diag = ioutil.diagonalize_blocks(V.values, blocksize=nr_sectors)
-    V_inv = np.linalg.inv(V_diag)
+    #V_inv = np.linalg.inv(V_diag)
+    #problem there are zeros in V_diag: this prohibits the inversion
+    diag= V_diag.diagonal()
+    #masking where 0
+    mdiag = np.ma.masked_array(diag, mask=(diag==0),fill_value=0)
+    inv_diag=1/mdiag
+    inv_diag[inv_diag.mask]=0
+    inv_diag.data
+    V_inv = np.diag(inv_diag)
     N = D_iba.dot(V_inv)
     if type(D_iba) is pd.DataFrame:
         N.columns = D_iba.columns
