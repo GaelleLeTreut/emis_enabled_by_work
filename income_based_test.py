@@ -139,9 +139,7 @@ if not os.path.exists(data_folder + os.sep + light_exiobase_folder):
         print('Calculating repartition key for FD emissions..')
         exec(open("building_F_Y_sec_share.py").read())
     else:
-        share_F_Y_sec = pd.read_csv(DATA_PATH + 'Share_F_Y_sec.csv', header=[0], index_col=0, sep=",")
-        share_F_Y_sec.columns.name='region'
-        share_F_Y_sec.index.name='sector'
+        share_F_Y_sec = pd.read_pickle(DATA_PATH + 'Share_F_Y_sec.pkl')
         
     F_Y_sec = share_F_Y_sec * (np.transpose(F_Y.values)/100)
   
@@ -156,6 +154,14 @@ if not os.path.exists(data_folder + os.sep + light_exiobase_folder):
     del io_orig.satellite
     del io_orig.impacts
     del io_orig.IOT_2015_pxp
+    
+    io_orig.calc_system()
+    io_orig.GHG_emissions.calc_system(x=io_orig.x, Y=io_orig.Y, L=io_orig.L, Y_agg=None, population=io_orig.population)
+    io_orig.GHG_emissions.calc_income_based(x = io_orig.x, V=io_orig.V, G=io_orig.G, V_agg=None, population=io_orig.population)
+
+    V_agg = io_orig.V.sum(level=0, axis=1, ).reindex(io_orig.get_regions(), axis=1)
+    io_orig.GHG_emissions.D_iba_zero_order = pymrio.tools.iomath.calc_D_iba(io_orig.GHG_emissions.S, pd.DataFrame(np.identity(np.shape(io_orig.G.values)[0])), V_agg, io_orig.get_sectors().size)
+    io_orig.GHG_emissions.D_iba_first_order = pymrio.tools.iomath.calc_D_iba(io_orig.GHG_emissions.S, io_orig.B, V_agg, io_orig.get_sectors().size)
     
 ## saving the pymrio database with the satellite account for GHG emissions and value-added only 
     os.makedirs(data_folder + os.sep + light_exiobase_folder)
@@ -190,17 +196,13 @@ else:
 ##########################
      
 #then we could simply a calc_all, I split here to avoid calculations in the huge extensions
-io_orig.calc_system()
-io_orig.GHG_emissions.calc_system(x=io_orig.x, Y=io_orig.Y, L=io_orig.L, Y_agg=None, population=io_orig.population)
-io_orig.GHG_emissions.calc_income_based(x = io_orig.x, V=io_orig.V, G=io_orig.G, V_agg=None, population=io_orig.population)
-#compute zero
-V_agg = io_orig.V.sum(level=0, axis=1, ).reindex(io_orig.get_regions(), axis=1)
-io_orig.GHG_emissions.D_iba_zero_order = pymrio.tools.iomath.calc_D_iba(io_orig.GHG_emissions.S, pd.DataFrame(np.identity(np.shape(io_orig.G.values)[0])), V_agg, io_orig.get_sectors().size)
-io_orig.GHG_emissions.D_iba_first_order = pymrio.tools.iomath.calc_D_iba(io_orig.GHG_emissions.S, io_orig.B, V_agg, io_orig.get_sectors().size)
-#this has to be checked if correct
+# io_orig.calc_system()
+# io_orig.GHG_emissions.calc_system(x=io_orig.x, Y=io_orig.Y, L=io_orig.L, Y_agg=None, population=io_orig.population)
+# io_orig.GHG_emissions.calc_income_based(x = io_orig.x, V=io_orig.V, G=io_orig.G, V_agg=None, population=io_orig.population)
 
-### to check shape .. : GHG_emissions.F_Y_sec  must be regionalized.. should be done before calc_system ?  
-#io_orig.GHG_emissions.S_d =  pymrio.calc_S(np.transpose(io_orig.GHG_emissions.F_Y_sec.stack().to_frame()),io_orig.x)
+# V_agg = io_orig.V.sum(level=0, axis=1, ).reindex(io_orig.get_regions(), axis=1)
+# io_orig.GHG_emissions.D_iba_zero_order = pymrio.tools.iomath.calc_D_iba(io_orig.GHG_emissions.S, pd.DataFrame(np.identity(np.shape(io_orig.G.values)[0])), V_agg, io_orig.get_sectors().size)
+# io_orig.GHG_emissions.D_iba_first_order = pymrio.tools.iomath.calc_D_iba(io_orig.GHG_emissions.S, io_orig.B, V_agg, io_orig.get_sectors().size)
 
 
 ##########################
@@ -215,15 +217,12 @@ sector_agg = corresp_table.values
 region_table = pd.read_csv(DATA_PATH + 'exiobase_FRvsRoW.csv', comment='#', index_col=0, sep=';')
 region_table=np.transpose(region_table)
 region_agg = region_table.values
-
-io_orig.aggregate(region_agg=region_agg, sector_agg=sector_agg, region_names = list(region_table.index.get_level_values(0)), sector_names = list(corresp_table.index.get_level_values(0)))
-
 region_list = list(io_orig.get_regions())
 
-##### GLT  TO check
-## Do we really need to put here a calc all to reassess the variables that are not aggregated? A, B L and G are not calculted...
-#io_orig.calc_all()
+F_Y_sec_and_reg = io_orig.GHG_emissions.F_Y_sec_and_reg
+del io_orig.GHG_emissions.F_Y_sec_and_reg
 
+io_orig.aggregate(region_agg=region_agg, sector_agg=sector_agg, region_names = list(region_table.index.get_level_values(0)), sector_names = list(corresp_table.index.get_level_values(0)))
 
 ##########################
 ###### Emission content and decomposition
@@ -232,6 +231,15 @@ region_list = list(io_orig.get_regions())
 ######
 ### Décomposition  Emission  content (in gCO2/euro)  = S + SB + SB^2 + ..
 ######
+V_agg = io_orig.V.sum(level=0, axis=1, ).reindex(io_orig.get_regions(), axis=1)
+
+inc_emis_cont = pymrio.tools.iomath.recalc_N(io_orig.GHG_emissions.S, io_orig.GHG_emission.D_iba, V_agg, io_orig.get_sectors().size)
+
+inc_emis_content_direct = pymrio.tools.iomath.recalc_N(io_orig.GHG_emissions.S, io_orig.GHG_emission.D_iba_zero_order, V_agg, io_orig.get_sectors().size)
+
+inc_emis_content_fo = pymrio.tools.iomath.recalc_N(io_orig.GHG_emissions.S, io_orig.GHG_emission.D_iba_first_order, V_agg, io_orig.get_sectors().size)
+
+
 # inc_emis_content = pymrio.calc_N(io_orig.GHG_emissions.S, io_orig.G)*1e-3 = io_orig.GHG_emissions.N*1e-3
 inc_emis_cont = pd.DataFrame(np.transpose((io_orig.GHG_emissions.N*1e-3).sum(level=0,axis=1).sum(level=1,axis=0)).stack(),columns=['emission content'])
 
