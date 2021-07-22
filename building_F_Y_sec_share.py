@@ -33,70 +33,55 @@ OUTPUTS_PATH = path + os.sep + output_folder + os.sep
 # ##########################
 ## Correspondance sector / code 
 # ##########################
-corresp_code_sect = pd.read_csv(DATA_PATH + 'sector_exiobase.csv', header=[0],  sep=";")
-
-product_dict = corresp_code_sect.set_index('ProductTypeCode').to_dict()
-ProductType = corresp_code_sect['ProductTypeCode'].values
-sector = corresp_code_sect['sector'].values
+corresp_code_sect = pd.read_csv(DATA_PATH + 'sector_exiobase.csv', sep=";")
+product_dict = dict(corresp_code_sect.values)
 
 # ##########################
 # ###### Loading extended files 
 # ##########################
 
 F_Y_sec_extended = pd.read_csv(DATA_PATH + 'emissions_finaldemand_disag_2015.txt', header=[0], index_col=0, sep="\t")
-F_Y_sec = F_Y_sec_extended[F_Y_sec_extended['SubstanceName'].isin(['CO2 - combustion', 'CH4 - combustion','N2O - combustion'])].drop(['IndustryTypeCode','AccountingYear','UnitCode','CompartmentName'],axis=1)
-F_Y_sec = F_Y_sec.reset_index()
-F_Y_sec.replace(ProductType,sector,inplace=True)
-F_Y_sec = F_Y_sec.set_index(['SubstanceName', 'ProductTypeCode', 'region'])
+F_Y_sec_by_GHG = F_Y_sec_extended[F_Y_sec_extended['SubstanceName'].isin(['CO2 - combustion', 'CH4 - combustion','N2O - combustion'])] #keep only GHG stressors
 
-################################################################
-## Isolating each Gases 
-F_Y_sec_CO2 = F_Y_sec.loc['CO2 - combustion']
-F_Y_sec_CH4 = F_Y_sec.loc['CH4 - combustion']
-F_Y_sec_N2O = F_Y_sec.loc['N2O - combustion']
-## Conversion en kgC02eq
-Convert_GHG = pd.DataFrame(columns=['Conversion to CO2eq'])
-Convert_GHG.loc['CH4 - combustion'] = 25
-Convert_GHG.loc['N2O - combustion'] = 298
-Convert_GHG.loc['CO2 - combustion'] = 1
-
-F_Y_sec_CH4 = F_Y_sec_CH4 * Convert_GHG.loc['CH4 - combustion'].values
-F_Y_sec_N2O = F_Y_sec_N2O * Convert_GHG.loc['N2O - combustion'].values
-
-F_Y_sec_CH4 = F_Y_sec_CH4.reorder_levels(order=['region', 'ProductTypeCode'])
-F_Y_sec_N2O + F_Y_sec_N2O.reorder_levels(order=['region', 'ProductTypeCode'])
-F_Y_sec_CO2 + F_Y_sec_CO2.reorder_levels(order=['region', 'ProductTypeCode'])
-
-F_Y_GHGtot = F_Y_sec_CH4.sum(axis=0,level='region') +F_Y_sec_N2O.sum(axis=0,level='region')+F_Y_sec_CO2.sum(axis=0,level='region')
-
-F_Y_sharesGHG = pd.DataFrame(index=F_Y_GHGtot.index)
-F_Y_sharesGHG["CH4 weight"]= (F_Y_sec_CH4.sum(axis=0,level='region')/F_Y_GHGtot)*100
-F_Y_sharesGHG["N20 weight"]= (F_Y_sec_N2O.sum(axis=0,level='region')/F_Y_GHGtot)*100
-F_Y_sharesGHG["CO2 weight"]= (F_Y_sec_CO2.sum(axis=0,level='region')/F_Y_GHGtot)*100
-##################################################################
-
-## Conversion en kgC02eq
-Convert = pd.DataFrame(index=F_Y_sec.index,columns=['Conversion to CO2eq'])
-Convert.loc['CH4 - combustion'] = 25
-Convert.loc['N2O - combustion'] = 298
-Convert.loc['CO2 - combustion'] = 1
-F_Y_sec = F_Y_sec.mul(Convert.values).groupby(axis=0,level=[2,1]).sum().unstack('region').fillna(0)
-F_Y_sec.columns = F_Y_sec.columns.droplevel(0)
+if (len(F_Y_sec_by_GHG['AccountingYear'].unique()) != 1) or (len(F_Y_sec_by_GHG['UnitCode'].unique()) != 1) or (len(F_Y_sec_by_GHG['CompartmentName'].unique()) != 1):
+    print('Error in indexes of F_Y_sec_by_GHG: Accounting Year or UnitCode or CompartmentName are not unique and cannot be droped')
 
 
-F_Y_sec_fill = pd.DataFrame(index =corresp_code_sect['sector'],columns=F_Y_sec.columns).fillna(0)
-## Filling F_Y_sec_tofill with F_Y_sec to get a matrix with the 200products... 
-## F_Y_sec_fill.combine_first(F_Y_sec) fails
-## F_Y_sec_fill.update(F_Y_sec)
-row_to_add = pd.DataFrame(index=F_Y_sec_fill.index.difference(F_Y_sec.index),columns=F_Y_sec.columns)
-F_Y_sec = F_Y_sec.append(row_to_add).fillna(0).sort_index()
+F_Y_sec_by_GHG_no_repeat= F_Y_sec_by_GHG.groupby(['region','ProductTypeCode','SubstanceName']).apply(lambda x: x['Amount'].sum()).reset_index() #sum by IndustryTypeCode
+#F_Y_sec_by_GHG_no_repeat= F_Y_sec_by_GHG.groupby(['region','IndustryTypeCode','SubstanceName']).apply(lambda x: x['Amount'].sum()).reset_index() #sum by IndustryTypeCode
+F_Y_sec_by_GHG_no_repeat['sector']=F_Y_sec_by_GHG_no_repeat['ProductTypeCode'].replace(product_dict) # convert ProductTypeCode into sector
+F_Y_sec_by_GHG_no_repeat['Substance'] = F_Y_sec_by_GHG_no_repeat['SubstanceName'].map(lambda x: x.split(' - ')[0]) # get rid of the " - combustion"
 
-### replace code by name of sector... surement une facon mieux de faire 
-# F_Y_sec['sector']=corresp_code_sect['sector'].values
-# F_Y_sec.set_index('sector',inplace=True)
+F_Y_sec_by_GHG_no_repeat.set_index(['region','Substance','sector'],inplace=True)
+
+GWP_conversion = pd.DataFrame({0: [1, 25, 298]},  index=['CO2', 'CH4', 'N2O'])
+
+F_Y_sec_by_GHG_in_CO2 = F_Y_sec_by_GHG_no_repeat.mul(GWP_conversion,level=1) #Conversion en kgC02eq
+
+F_Y_sec_all_GHG = F_Y_sec_by_GHG_in_CO2.groupby(['region','sector']).apply(lambda x: x[0].sum()).reset_index()
+
+#statistics in absolute number in each region
+#F_Y_sec_by_GHG_in_CO2.groupby(['region','Substance']).apply(lambda x: x[0].sum()).reset_index()
+
+#statistics by type of GHG in each region
+F_Y_sec_by_GHG_in_CO2.groupby(['region']).apply(lambda x: pd.Series({'CH4': x.loc[pd.IndexSlice[:, ['CH4'],:],:][0].sum()/x[0].sum(),'N2O': x.loc[pd.IndexSlice[:, ['N2O'],:],:][0].sum()/x[0].sum(), 'CO2': x.loc[pd.IndexSlice[:, ['CO2'],:],:][0].sum()/x[0].sum()}))
+
+#this seems to be right: testing for country SI (chosen because low share of CO2)
+#tot_N2O=np.sum(F_Y_sec_by_GHG[F_Y_sec_by_GHG['SubstanceName']=='N2O - combustion'].loc['SI',:]['Amount'])*298
+#tot_CO2=np.sum(F_Y_sec_by_GHG[F_Y_sec_by_GHG['SubstanceName']=='CO2 - combustion'].loc['SI',:]['Amount'])
+#tot_CH4=np.sum(F_Y_sec_by_GHG[F_Y_sec_by_GHG['SubstanceName']=='CH4 - combustion'].loc['SI',:]['Amount'])*25
+#tot_CH4/(tot_CO2+tot_CH4+tot_N2O)
+#tot_N2O/(tot_CO2+tot_CH4+tot_N2O)
+
+
+
+#construction of F_Y_sec: to be finished
+F_Y_sec_sparsed = F_Y_sec_all_GHG.pivot(index='sector',columns='region',values=0).fillna(0) #pivoting F_Y_sec_all and fill nan
+F_Y_sec_to_fill = pd.DataFrame(index =corresp_code_sect['sector'],columns=F_Y_sec_sparsed.columns)
+F_Y_sec_final = F_Y_sec_to_fill.combine_first(F_Y_sec_sparsed).fillna(0)
 
 # ##########################
 ## Share  / repartition key to use in impacts
 # ##########################
-share_F_Y_sec = F_Y_sec.div(F_Y_sec.sum(axis=0))*100
+share_F_Y_sec = F_Y_sec_final.div(F_Y_sec_final.sum(axis=0))
 share_F_Y_sec.to_pickle(DATA_PATH+'Share_F_Y_sec.pkl')
