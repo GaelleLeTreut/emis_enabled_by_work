@@ -135,13 +135,13 @@ if not os.path.exists(data_folder + os.sep + light_exiobase_folder):
 
 
 # ###### GHG emissions from Final Demand by sector
-    if not os.path.exists(data_folder + os.sep + "Share_F_Y_sec.csv"):
+    if not os.path.exists(data_folder + os.sep + "Share_F_Y_sec.pkl"):
         print('Calculating repartition key for FD emissions..')
         exec(open("building_F_Y_sec_share.py").read())
     else:
         share_F_Y_sec = pd.read_pickle(DATA_PATH + 'Share_F_Y_sec.pkl')
         
-    F_Y_sec = share_F_Y_sec * (np.transpose(F_Y.values)/100)
+    F_Y_sec = share_F_Y_sec * (np.transpose(F_Y.values))
   
     sum_Y_on_region_of_origin = io_orig.Y.sum(level='sector').drop(['Changes in inventories', 'Changes in valuables', 'Exports: Total (fob)','Gross fixed capital formation'], axis=1, level=1).sum(level=0,axis=1)
     
