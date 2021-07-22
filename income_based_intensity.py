@@ -73,7 +73,7 @@ F_Y_sec = pd.read_csv(DATA_PATH + 'F_Y_sec.txt', header=[0,1], index_col=0, sep=
 sum_Y_on_region_of_origin = io_orig.Y.sum(level='sector')
 #first attempt with Kronecker product but this is actually useless
 ##Kronecker product with index regions
-#nb_regions = len(io_orig.get_regions())
+#nb_regions = io_orig.get_regions().size
 #kron_sum_Y_on_region_of_origin =pd.concat([sum_Y_on_region_of_origin] * nb_regions, axis=0, keys=io_orig.get_regions(),names=['region','category','sub_category','sector'])
 #kron_F_Y_sec =pd.concat([F_Y_sec] * nb_regions, axis=0, keys=io_orig.get_regions(),names=['region','sector'])
 #F_Y_sec_and_reg_2 = (io_orig.Y / kron_sum_Y_on_region_of_origin) * kron_F_Y_sec
