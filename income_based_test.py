@@ -142,10 +142,22 @@ if not os.path.exists(data_folder + os.sep + light_exiobase_folder):
         share_F_Y_sec = pd.read_pickle(DATA_PATH + 'Share_F_Y_sec.pkl')
         
     F_Y_sec = share_F_Y_sec * (np.transpose(F_Y.values))
-  
-    sum_Y_on_region_of_origin = io_orig.Y.sum(level='sector').drop(['Changes in inventories', 'Changes in valuables', 'Exports: Total (fob)','Gross fixed capital formation'], axis=1, level=1).sum(level=0,axis=1)
-    
-    F_Y_sec_and_reg = (io_orig.Y.drop(['Changes in inventories', 'Changes in valuables', 'Exports: Total (fob)','Gross fixed capital formation'], axis=1, level=1).sum(level=0,axis=1) / sum_Y_on_region_of_origin) * F_Y_sec
+ 
+    Y_drop = io_orig.Y.drop(['Changes in inventories', 'Changes in valuables', 'Exports: Total (fob)','Gross fixed capital formation'], axis=1, level=1).sum(level=0,axis=1)
+
+    sum_Y_on_region_of_origin = Y_drop.sum(level='sector')    
+        
+     #spotting sector with problems
+    df_problem = (sum_Y_on_region_of_origin == 0) & (F_Y_sec > 0)  
+     
+    ##GLT
+    #Pour chaque pays,
+    #IF df_problem.loc['Natural gas and services related to natural gas extraction, excluding surveying'] est vrai ET que sum_Y_on_region_of_origin.loc['Distribution services of gaseous fuels through mains']!=0
+    #Alors 
+    #F_Y_sec.loc['Distribution services of gaseous fuels through mains' = F_Y_sec.loc['Natural gas and services related to natural gas extraction, excluding surveying']
+    #F_Y_sec.loc['Natural gas and services related to natural gas extraction, excluding surveying']=0
+
+    F_Y_sec_and_reg = (Y_drop / sum_Y_on_region_of_origin) * F_Y_sec
     F_Y_sec_and_reg.fillna(0, inplace =True)
     
     io_orig.GHG_emissions.F_Y_sec_and_reg = F_Y_sec_and_reg
