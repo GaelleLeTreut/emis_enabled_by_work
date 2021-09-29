@@ -149,13 +149,66 @@ if not os.path.exists(data_folder + os.sep + light_exiobase_folder):
         
      #spotting sector with problems
     df_problem = (sum_Y_on_region_of_origin == 0) & (F_Y_sec > 0)  
-     
-    ##GLT
-    #Pour chaque pays,
-    #IF df_problem.loc['Natural gas and services related to natural gas extraction, excluding surveying'] est vrai ET que sum_Y_on_region_of_origin.loc['Distribution services of gaseous fuels through mains']!=0
-    #Alors 
-    #F_Y_sec.loc['Distribution services of gaseous fuels through mains' = F_Y_sec.loc['Natural gas and services related to natural gas extraction, excluding surveying']
-    #F_Y_sec.loc['Natural gas and services related to natural gas extraction, excluding surveying']=0
+
+    for region in df_problem.columns:
+
+        #correction problems with Natural gas
+        sector_origin = 'Natural gas and services related to natural gas extraction, excluding surveying'
+        sector_destination = 'Distribution services of gaseous fuels through mains'
+        sector_destination2 = 'Biogas'
+        sector_destination3 = 'Gas Works Gas'
+        sector_destination4 = 'Liquefied Petroleum Gases (LPG)'
+        if df_problem.loc[sector_origin, region]:#on a des émissions de gaz naturel mais pas de consommation
+            if (sum_Y_on_region_of_origin.loc[sector_destination, region] !=0): #mais on a des consommations dans le secteur 'Distribution', alors on change on alloue les émissions à ce secteur-là
+                F_Y_sec.loc[sector_destination, region] = F_Y_sec.loc[sector_origin, region]
+                F_Y_sec.loc[sector_origin, region]=0
+                print(sector_origin[0:11] +': For ' + region + ', change for '+sector_destination)
+            elif (sum_Y_on_region_of_origin.loc[sector_destination2, region] !=0): #pas de consommation jusqu'à présent, mais on a des consommations dans le secteur 'Biogas', alors on change on alloue les émissions à ce secteur-là
+                F_Y_sec.loc[sector_destination2, region] = F_Y_sec.loc[sector_origin, region]
+                F_Y_sec.loc[sector_origin, region]=0
+                print(sector_origin[0:11] +': For ' + region + ', change for '+sector_destination2)
+            elif (sum_Y_on_region_of_origin.loc[sector_destination3, region] !=0): #pas de consommation jusqu'à présent, mais on a des consommations dans le secteur 'Gas Works Gas', alors on change on alloue les émissions à ce secteur-là
+                F_Y_sec.loc[sector_destination3, region] = F_Y_sec.loc[sector_origin, region]
+                F_Y_sec.loc[sector_origin, region]=0
+                print(sector_origin[0:11] +': For ' + region + ', change for '+sector_destination3)
+            elif (sum_Y_on_region_of_origin.loc[sector_destination4, region] !=0): #pas de consommation jusqu'à présent, mais on a des consommations dans le secteur 'LPG, alors on change on alloue les émissions à ce secteur-là
+                F_Y_sec.loc[sector_destination4, region] = F_Y_sec.loc[sector_origin, region]
+                F_Y_sec.loc[sector_origin, region]=0
+                print(sector_origin[0:11] +': For ' + region + ', change for '+sector_destination4)
+            else: 
+                print(sector_origin[0:11]+':For ' + region + ', correction could not be made')
+
+        #correcting sector with problems GAS/OIL
+        sector_origin = 'Gas/Diesel Oil'
+        sector_destination = 'Motor Gasoline'
+        sector_destination2 = 'Heavy Fuel Oil'
+        sector_destination3 = 'Liquefied Petroleum Gases (LPG)'
+        if df_problem.loc[sector_origin, region]:#on a des émissions de gaz naturel mais pas de consommation
+            if (sum_Y_on_region_of_origin.loc[sector_destination, region] !=0): #mais on a des consommations dans le secteur distribution, alors on change on alloue les émissions à ce secteur-là
+                F_Y_sec.loc[sector_destination, region] = F_Y_sec.loc[sector_origin, region]
+                F_Y_sec.loc[sector_origin, region]=0
+                print(sector_origin +': For ' + region + ', change for '+sector_destination)
+            elif (sum_Y_on_region_of_origin.loc[sector_destination2, region] !=0): #mais on a des consommations dans le secteur distribution, alors on change on alloue les émissions à ce secteur-là
+                F_Y_sec.loc[sector_destination2, region] = F_Y_sec.loc[sector_origin, region]
+                F_Y_sec.loc[sector_origin, region]=0
+                print(sector_origin +': For ' + region + ', change for '+sector_destination2)
+            elif (sum_Y_on_region_of_origin.loc[sector_destination3, region] !=0): #mais on a des consommations dans le secteur distribution, alors on change on alloue les émissions à ce secteur-là
+                F_Y_sec.loc[sector_destination3, region] = F_Y_sec.loc[sector_origin, region]
+                F_Y_sec.loc[sector_origin, region]=0
+                print(sector_origin +': For ' + region + ', change for '+sector_destination3)
+            else: 
+                print(sector_origin+': For ' + region + ', correction could not be made')
+
+        #correcting sector with problems Other Bituminous Coal
+        sector_origin = 'Other Bituminous Coal'
+        sector_destination = 'Chemical and fertilizer minerals, salt and other mining and quarrying products n.e.c.' 
+        if df_problem.loc[sector_origin, region]:#on a des émissions de gaz naturel mais pas de consommation
+            if (sum_Y_on_region_of_origin.loc[sector_destination, region] !=0): #mais on a des consommations dans le secteur distribution, alors on change on alloue les émissions à ce secteur-là
+                F_Y_sec.loc[sector_destination, region] = F_Y_sec.loc[sector_origin, region]
+                F_Y_sec.loc[sector_origin, region]=0
+                print(sector_origin +': For ' + region + ', change for '+sector_destination[0:11])
+            else: 
+                print(sector_origin+': For ' + region + ', correction could not be made')
 
     F_Y_sec_and_reg = (Y_drop / sum_Y_on_region_of_origin) * F_Y_sec
     F_Y_sec_and_reg.fillna(0, inplace =True)
