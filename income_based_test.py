@@ -213,7 +213,8 @@ if not os.path.exists(data_folder + os.sep + light_exiobase_folder):
     F_Y_sec_and_reg = (Y_drop / sum_Y_on_region_of_origin) * F_Y_sec
     F_Y_sec_and_reg.fillna(0, inplace =True)
     
-    io_orig.GHG_emissions.F_Y_sec_and_reg = F_Y_sec_and_reg
+
+    io_orig.GHG_emissions.F_Y_final = pymrio.tools.ioutil.diagonalize_blocks(F_Y_sec_and_reg.values, blocksize = io_orig.get_sectors().size).transpose()
 
 ##deleting unecessary satellite accounts
     del io_orig.satellite
@@ -283,8 +284,8 @@ region_table = pd.read_csv(DATA_PATH + 'exiobase_FRvsRoW.csv', comment='#', inde
 region_table=np.transpose(region_table)
 region_agg = region_table.values
 
-F_Y_sec_and_reg = io_orig.GHG_emissions.F_Y_sec_and_reg
-del io_orig.GHG_emissions.F_Y_sec_and_reg
+F_Y_final = io_orig.GHG_emissions.F_Y_final
+del io_orig.GHG_emissions.F_Y_final
 
 io_orig.aggregate(region_agg=region_agg, sector_agg=sector_agg, region_names = list(region_table.index.get_level_values(0)), sector_names = list(corresp_table.index.get_level_values(0)))
 region_list = list(io_orig.get_regions())
