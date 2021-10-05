@@ -1157,11 +1157,11 @@ class Extension(CoreSystem):
             (self.D_iba is None)
         ):
             if G is None:
-                logging.debug("Not possilbe to calculate D accounts - G not present")
+                logging.debug("Not possible to calculate D accounts - G not present")
                 return
             else:
                 self.D_iba = calc_D_iba(
-                    self.S + calc_S(self.F_Y_sec_and_reg, x), G, V_agg, self.get_sectors().size
+                    self.S + calc_S(self.F_Y_final, x), G, V_agg, self.get_sectors().size
                 )
                 logging.debug("{} - Accounts D_iba calculated".format(self.name))
 
