@@ -763,6 +763,8 @@ class Extension(CoreSystem):
         The second level 'compartment' is optional
     F_Y : pandas.DataFrame
         Extension of final demand with columns a y and index as F
+    F_Y_final : pandas.DataFrame
+        Extension of final demand: direct emissions by branches of origin
     S : pandas.DataFrame
         Direct impact (extensions) coefficients with multiindex as F
     S_Y : pandas.DataFrame
@@ -809,6 +811,7 @@ class Extension(CoreSystem):
         name,
         F=None,
         F_Y=None,
+        F_Y_final=None,
         S=None,
         S_Y=None,
         M=None,
@@ -825,6 +828,7 @@ class Extension(CoreSystem):
         self.name = name
         self.F = F
         self.F_Y = F_Y
+        self.F_Y_final = F_Y_final
         self.S = S
         self.S_Y = S_Y
         self.M = M
@@ -1160,10 +1164,16 @@ class Extension(CoreSystem):
                 logging.debug("Not possible to calculate D accounts - G not present")
                 return
             else:
-                self.D_iba = calc_D_iba(
-                    self.S + calc_S(self.F_Y_final, x), G, V_agg, self.get_sectors().size
-                )
-                logging.debug("{} - Accounts D_iba calculated".format(self.name))
+                if (self.F_Y_final is None):
+                    self.D_iba = calc_D_iba(
+                        self.S, G, V_agg, self.get_sectors().size
+                    )
+                    logging.debug("{} - Accounts D_iba calculated without emissions from final demand".format(self.name))
+                else:
+                    self.D_iba = calc_D_iba(
+                        self.S + calc_S(self.F_Y_final, x), G, V_agg, self.get_sectors().size
+                    )
+                    logging.debug("{} - Accounts D_iba calculated with emissions from final demand".format(self.name))
 
         # aggregate to country
         if (
