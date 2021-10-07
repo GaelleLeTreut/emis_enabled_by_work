@@ -213,8 +213,14 @@ if not os.path.exists(data_folder + os.sep + light_exiobase_folder):
     F_Y_sec_and_reg = (Y_drop / sum_Y_on_region_of_origin) * F_Y_sec
     F_Y_sec_and_reg.fillna(0, inplace =True)
     
+    io_orig.GHG_emissions = io_orig.impacts.diag_stressor('GHG emissions (GWP100) | Problem oriented approach: baseline (CML, 2001) | GWP100 (IPCC, 2007)')
 
-    io_orig.GHG_emissions.F_Y_final = pymrio.tools.ioutil.diagonalize_blocks(F_Y_sec_and_reg.values, blocksize = io_orig.get_sectors().size).transpose()
+    #diagonalise by sector to have same format as F
+    F_Y_final = pymrio.tools.ioutil.diagonalize_blocks(F_Y_sec_and_reg.values, blocksize = io_orig.get_sectors().size).transpose()
+    #transform into a dataFrame with correct indices
+    F_Y_final = pd.DataFrame(F_Y_final, index=io_orig.GHG_emissions.F.index, columns=io_orig.GHG_emissions.F.columns)
+    #save in extensions
+    io_orig.GHG_emissions.F_Y_final = F_Y_final
 
 ##deleting unecessary satellite accounts
     del io_orig.satellite
