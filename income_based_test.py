@@ -227,6 +227,26 @@ if not os.path.exists(data_folder + os.sep + light_exiobase_folder):
     del io_orig.impacts
     del io_orig.IOT_2015_pxp
     
+    ##########################
+    ###### AGGREGATION PRE CALCULATION
+    ##########################
+    ## Aggregation into 35 sectors (closest correspondance with A38 nomenclature)
+    # corresp_table = pd.read_csv(DATA_PATH + 'exiobase_A38.csv', comment='#',header=[0,1], index_col=0, sep=';')
+    # corresp_table=np.transpose(corresp_table)
+    # sector_agg = corresp_table.values
+
+    # ## Aggregation into two regions: FR and RoW
+    # region_table = pd.read_csv(DATA_PATH + 'exiobase_FRvsRoW.csv', comment='#', index_col=0, sep=';')
+    # region_table=np.transpose(region_table)
+    # region_agg = region_table.values
+    
+    # F_Y_final = io_orig.GHG_emissions.F_Y_final
+    # io_orig.GHG_emissions.F_Y_final
+
+    # io_orig.aggregate(region_agg=region_agg, sector_agg=sector_agg, region_names =          list(region_table.index.get_level_values(0)), sector_names = list(corresp_table.index.get_level_values(0)))
+    # region_list = list(io_orig.get_regions())
+    ###############################
+    
     io_orig.calc_system()
     io_orig.GHG_emissions.calc_system(x=io_orig.x, Y=io_orig.Y, L=io_orig.L, Y_agg=None, population=io_orig.population)
     io_orig.GHG_emissions.calc_income_based(x = io_orig.x, V=io_orig.V, G=io_orig.G, V_agg=None, population=io_orig.population)
@@ -246,46 +266,16 @@ else:
     io_orig = pymrio.load_all(data_folder + os.sep + light_exiobase_folder)
     print('Loaded')
     
-##########################
-###### AGGREGATION PRE CALCULATION
-##########################
-## Aggregation into 35 sectors (closest correspondance with A38 nomenclature)
-# corresp_table = pd.read_csv(DATA_PATH + 'exiobase_A38.csv', comment='#',header=[0,1], index_col=0, sep=';')
-# corresp_table=np.transpose(corresp_table)
-# sector_agg = corresp_table.values
-
-# ## Aggregation into two regions: FR and RoW
-# region_table = pd.read_csv(DATA_PATH + 'exiobase_FRvsRoW.csv', comment='#', index_col=0, sep=';')
-# region_table=np.transpose(region_table)
-# region_agg = region_table.values
-
-# io_orig.aggregate(region_agg=region_agg, sector_agg=sector_agg, region_names = list(region_table.index.get_level_values(0)), sector_names = list(corresp_table.index.get_level_values(0)))
-
-# region_list = list(io_orig.get_regions()) 
-
-##########################
-###### CALCULATION
-##########################
-     
-#then we could simply a calc_all, I split here to avoid calculations in the huge extensions
-# io_orig.calc_system()
-# io_orig.GHG_emissions.calc_system(x=io_orig.x, Y=io_orig.Y, L=io_orig.L, Y_agg=None, population=io_orig.population)
-# io_orig.GHG_emissions.calc_income_based(x = io_orig.x, V=io_orig.V, G=io_orig.G, V_agg=None, population=io_orig.population)
-
-# V_agg = io_orig.V.sum(level=0, axis=1, ).reindex(io_orig.get_regions(), axis=1)
-# io_orig.GHG_emissions.D_iba_zero_order = pymrio.tools.iomath.calc_D_iba(io_orig.GHG_emissions.S, pd.DataFrame(np.identity(np.shape(io_orig.G.values)[0])), V_agg, io_orig.get_sectors().size)
-# io_orig.GHG_emissions.D_iba_first_order = pymrio.tools.iomath.calc_D_iba(io_orig.GHG_emissions.S, io_orig.B, V_agg, io_orig.get_sectors().size)
-
 
 ##########################
 ###### AGGREGATION POST CALCULATION
 ##########################
-# Aggregation into 35 sectors (closest correspondance with A38 nomenclature)
+## Aggregation into 35 sectors (closest correspondance with A38 nomenclature)
 corresp_table = pd.read_csv(DATA_PATH + 'exiobase_A38.csv', comment='#',header=[0,1], index_col=0, sep=';')
 corresp_table=np.transpose(corresp_table)
 sector_agg = corresp_table.values
 
-# Aggregation into two regions: FR and RoW
+#  Aggregation into two regions: FR and RoW
 region_table = pd.read_csv(DATA_PATH + 'exiobase_FRvsRoW.csv', comment='#', index_col=0, sep=';')
 region_table=np.transpose(region_table)
 region_agg = region_table.values
@@ -315,18 +305,6 @@ inc_emis_content_fo = pd.DataFrame(np.transpose(pymrio.tools.iomath.recalc_N(io_
 inc_emis_content_so = pd.DataFrame(np.transpose(pymrio.tools.iomath.recalc_N(io_orig.GHG_emissions.S, io_orig.GHG_emissions.D_iba - io_orig.GHG_emissions.D_iba_zero_order - io_orig.GHG_emissions.D_iba_first_order, V_agg, io_orig.get_sectors().size).sum(level=0,axis=1).sum(level=1,axis=0)*1e-3).stack(),columns=['Rest emis content'])
 
 
-########## OLD to control if same results
-# inc_emis_content = pymrio.calc_N(io_orig.GHG_emissions.S, io_orig.G)*1e-3 = io_orig.GHG_emissions.N*1e-3
-# inc_emis_cont_old = pd.DataFrame(np.transpose((io_orig.GHG_emissions.N*1e-3).sum(level=0,axis=1).sum(level=1,axis=0)).stack(),columns=['emission content'])
-
-# inc_emis_content_direct_old = pd.DataFrame(np.transpose((io_orig.GHG_emissions.S*1e-3).sum(level=0,axis=1).sum(level=1,axis=0)).stack(),columns=['Direct emis content'])
-# inc_emis_content_fo_old = pd.DataFrame(np.transpose((pymrio.calc_N(io_orig.GHG_emissions.S, io_orig.B)*1e-3).sum(level=0,axis=1).sum(level=1,axis=0)).stack(),columns=['FO emis content'])
-# inc_emis_content_so_old =pd.DataFrame(np.transpose((pymrio.calc_N(io_orig.GHG_emissions.S, io_orig.B.dot(io_orig.B))*1e-3).sum(level=0,axis=1).sum(level=1,axis=0)).stack(),columns=['SO emis content'])
-##########################################
-# inc_emis_cont_decomp = inc_emis_content_direct.copy()
-# inc_emis_cont_decomp.loc[:,'FO emis content'] = inc_emis_content_fo['FO emis content']
-# inc_emis_cont_decomp.loc[:,'SO emis content'] = inc_emis_content_so['SO emis content']
-# inc_emis_cont_decomp.loc[:,'Rest emis content'] =inc_emis_cont['emission content'] - ( inc_emis_content_direct['Direct emis content'] + inc_emis_content_fo['FO emis content'] + inc_emis_content_so['SO emis content']) 
 
 inc_emis_cont_decomp = inc_emis_content_direct.copy()
 inc_emis_cont_decomp.loc[:,'FO emis content'] = inc_emis_content_fo['FO emis content']
@@ -444,11 +422,11 @@ emis_cont_fr_to_save['% domestic emissions']=  share_dom_emis['% domestic emissi
 emis_cont_fr_to_save = emis_cont_fr_to_save.drop(['region'], axis=1)
 emis_cont_fr_to_save = emis_cont_fr_to_save.sort_values(by=['emission content'], ascending = False )
 
-top10_table= round(emis_cont_fr_to_save[:10],1).to_latex(index=False)
-least10_table= round(emis_cont_fr_to_save[-11:],1).to_latex(index=False)
+emis_cont_fr_to_save.rename(columns={'sector':'Industry','emission content':'Downstream carbon intensity'},inplace=True)
 
-print(top10_table)
-print(least10_table)
+emis_cont_fr_to_save[:10].to_latex(OUTPUTS_PATH+"top10_emis_cont.tex",index=False,float_format = "{:.1f}".format,column_format='lL{2cm}L{2cm}L{2cm}L{2cm}')
+
+emis_cont_fr_to_save[-11:].to_latex(OUTPUTS_PATH+"least10_emis_cont.tex",index=False,float_format = "{:.1f}".format,column_format='lL{2cm}L{2cm}L{2cm}L{2cm}')
 
 
 VA = pd.DataFrame(io_orig.V.sum(axis=1, level=0).sum(axis=1),columns=['value added'])
