@@ -143,19 +143,23 @@ if not os.path.exists(data_folder + os.sep + light_exiobase_folder):
         exec(open("building_F_Y_sec_share.py").read())
     else:
         share_F_Y_sec = pd.read_pickle(DATA_PATH + 'Share_F_Y_sec.pkl')
-        
+
+    #F_Y_sec (i,j): emissions from households of countries j, to final demand addressed to sector i
     F_Y_sec = share_F_Y_sec * (np.transpose(F_Y.values))
  
     Y_drop = io_orig.Y.drop(['Changes in inventories', 'Changes in valuables', 'Exports: Total (fob)','Gross fixed capital formation'], axis=1, level=1).sum(level=0,axis=1)
 
+    #element i,j contains final consumption (except the components excluded in previous lines) of countries j addressed to sector i
     sum_Y_on_region_of_origin = Y_drop.sum(level='sector')    
         
-     #spotting sector with problems
+     #spotting sector with problems: for this sector, there is emissions (according to F_Y_sec) but no final consumption (according to Y)
     df_problem = (sum_Y_on_region_of_origin == 0) & (F_Y_sec > 0)  
 
-    for region in df_problem.columns:
+    #this manually reallocates emissions on F_Y_sec to other sectors where there is final consumption
+    #only done for specific sectors that are quantitatively important
 
-        #correction problems with Natural gas
+    for region in df_problem.columns:
+        #correction emissions from Natural gas with no final demand
         sector_origin = 'Natural gas and services related to natural gas extraction, excluding surveying'
         sector_destination = 'Distribution services of gaseous fuels through mains'
         sector_destination2 = 'Biogas'
@@ -181,7 +185,7 @@ if not os.path.exists(data_folder + os.sep + light_exiobase_folder):
             else: 
                 print(sector_origin[0:11]+':For ' + region + ', correction could not be made')
 
-        #correcting sector with problems GAS/OIL
+        #correction emissions from Gaz/Oil with no final demand
         sector_origin = 'Gas/Diesel Oil'
         sector_destination = 'Motor Gasoline'
         sector_destination2 = 'Heavy Fuel Oil'
@@ -202,7 +206,7 @@ if not os.path.exists(data_folder + os.sep + light_exiobase_folder):
             else: 
                 print(sector_origin+': For ' + region + ', correction could not be made')
 
-        #correcting sector with problems Other Bituminous Coal
+        #correction emissions from Other Bituminous Coal with no final demand
         sector_origin = 'Other Bituminous Coal'
         sector_destination = 'Chemical and fertilizer minerals, salt and other mining and quarrying products n.e.c.' 
         if df_problem.loc[sector_origin, region]:#on a des émissions de gaz naturel mais pas de consommation
@@ -213,11 +217,11 @@ if not os.path.exists(data_folder + os.sep + light_exiobase_folder):
             else: 
                 print(sector_origin+': For ' + region + ', correction could not be made')
 
+ #no need to sort index here, as we work with DataFrame, indexing is recognized
     F_Y_sec_and_reg = (Y_drop / sum_Y_on_region_of_origin) * F_Y_sec
     F_Y_sec_and_reg.fillna(0, inplace =True)
+    #at this stage element i, j of F_Y_sec_and_reg contains direct emissions of household of country j coming from final consumption adressed to country x sector i
     
-    io_orig.GHG_emissions = io_orig.impacts.diag_stressor('GHG emissions (GWP100) | Problem oriented approach: baseline (CML, 2001) | GWP100 (IPCC, 2007)')
-
     #diagonalise by sector to have same format as F
     F_Y_final = pymrio.tools.ioutil.diagonalize_blocks(F_Y_sec_and_reg.values, blocksize = io_orig.get_sectors().size).transpose()
     #transform into a dataFrame with correct indices
@@ -283,6 +287,7 @@ region_table = pd.read_csv(DATA_PATH + 'exiobase_FRvsRoW.csv', comment='#', inde
 region_table=np.transpose(region_table)
 region_agg = region_table.values
 
+#save F_Y_final but delete it from extensions as it cannot be aggregated
 F_Y_final = io_orig.GHG_emissions.F_Y_final
 del io_orig.GHG_emissions.F_Y_final
 
@@ -314,7 +319,7 @@ inc_emis_cont_decomp.loc[:,'FO emis content'] = inc_emis_content_fo['FO emis con
 inc_emis_cont_decomp.loc[:,'Rest emis content'] =inc_emis_cont['emission content'] - ( inc_emis_content_direct['Direct emis content'] + inc_emis_content_fo['FO emis content']) 
 
 
-## income based emission in France in MtCO2 
+## income based emission in France in MtCO2
 income_based_emis_FR =io_orig.GHG_emissions.D_iba.sum(axis=1).loc[['FR']]*1e-9
 #io_orig.GHG_emissions.D_iba.sum(axis=0,level='region')
 #pour avoir les D_iba avec seulement le pays pour l'origine des émissions
@@ -431,11 +436,26 @@ emis_cont_fr_to_save = emis_cont_fr_to_save.sort_values(by=['emission content'],
 
 emis_cont_fr_to_save.rename(columns={'sector':'Industry','emission content':'Downstream carbon intensity'},inplace=True)
 
+#replace sector code by their full label
+#build a dictionary
+code_to_label_dic = {}
+for item in corresp_table.index:
+     code, label = item
+     code_to_label_dic[code]=label + " (" + code +")"
+#emis_cont_fr_to_save['Industry'].replace(code_to_label_dic, inplace=True)
+
+
 emis_cont_fr_to_save_without_zero = emis_cont_fr_to_save[emis_cont_fr_to_save['Downstream carbon intensity'] !=0]
 
 emis_cont_fr_to_save_without_zero[:10].to_latex(OUTPUTS_PATH+"top10_emis_cont.tex",index=False,float_format = "{:.1f}".format,column_format='lL{2cm}L{2cm}L{2cm}L{2cm}')
 
 emis_cont_fr_to_save_without_zero[-10:].to_latex(OUTPUTS_PATH+"least10_emis_cont.tex",index=False,float_format = "{:.1f}".format,column_format='lL{2cm}L{2cm}L{2cm}L{2cm}')
+
+#this is when Industry is recoded
+##not to truncate long string
+#with pd.option_context("max_colwidth", 1000):
+#    emis_cont_fr_to_save_without_zero[:10].to_latex(OUTPUTS_PATH+"top10_emis_cont.tex",index=False,float_format = "{:.1f}".format,column_format='L{4cm}L{2cm}L{2cm}L{2cm}L{2cm}')
+#    emis_cont_fr_to_save_without_zero[-10:].to_latex(OUTPUTS_PATH+"least10_emis_cont.tex",index=False,float_format = "{:.1f}".format,column_format='L{4cm}L{2cm}L{2cm}L{2cm}L{2cm}')
 
 
 VA = pd.DataFrame(io_orig.V.sum(axis=1, level=0).sum(axis=1),columns=['value added'])
