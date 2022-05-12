@@ -79,8 +79,8 @@ if not os.path.exists(output_folder):
     os.makedirs(output_folder)
     print('Creating ' + output_folder + ' to store outputs')
 
-DATA_PATH = path + os.sep + data_folder + os.sep
-OUTPUTS_PATH = path + os.sep + output_folder + os.sep
+data_path = path + os.sep + data_folder + os.sep
+output_path = path + os.sep + output_folder + os.sep
 
 # # plt.rcParams['text.latex.preamble']=[r"\usepackage{lmodern}"]
 # # params = {'text.usetex' : True,
@@ -96,7 +96,7 @@ OUTPUTS_PATH = path + os.sep + output_folder + os.sep
 
 # ###### Chargement de la base EXIOBASE
 light_exiobase_folder ='IOT_2015_pxp_GHG_emissions'
-full_exiobase_storage = DATA_PATH+'IOT_2015_pxp.zip'
+full_exiobase_storage = data_path+'IOT_2015_pxp.zip'
 
 ## Download from exiobase Zenodo
 ## If the light database doesn't exist already, it loads the full database
@@ -142,7 +142,7 @@ if not os.path.exists(data_folder + os.sep + light_exiobase_folder):
         print('Calculating repartition key for FD emissions..')
         exec(open("building_F_Y_sec_share.py").read())
     else:
-        share_F_Y_sec = pd.read_pickle(DATA_PATH + 'Share_F_Y_sec.pkl')
+        share_F_Y_sec = pd.read_pickle(data_path + 'Share_F_Y_sec.pkl')
 
     #F_Y_sec (i,j): emissions from households of countries j, to final demand addressed to sector i
     F_Y_sec = share_F_Y_sec * (np.transpose(F_Y.values))
@@ -228,7 +228,7 @@ if not os.path.exists(data_folder + os.sep + light_exiobase_folder):
     F_Y_final = pymrio.tools.ioutil.diagonalize_blocks(F_Y_sec_and_reg.values, blocksize = io_orig.get_sectors().size).transpose()
 
     #transform into a dataFrame with correct indices (from F_Y_sec_and_reg)
-    F_Y_final = pd.DataFrame(F_Y_final, index=F_Y_sec_and_reg.index, columns=io_orig.GHG_emissions.F.columns)
+    F_Y_final = pd.DataFrame(F_Y_final, index=F_Y_sec_and_reg.index, columns=F_Y_sec_and_reg.index)
     
     #add this as a security check in case the indices are not in the same way
     MRIO_index = io_orig.GHG_emissions.F.index
@@ -249,12 +249,12 @@ if not os.path.exists(data_folder + os.sep + light_exiobase_folder):
     ###### AGGREGATION PRE CALCULATION
     ##########################
     ## Aggregation into 35 sectors (closest correspondance with A38 nomenclature)
-    # corresp_table = pd.read_csv(DATA_PATH + 'exiobase_A38.csv', comment='#',header=[0,1], index_col=0, sep=';')
+    # corresp_table = pd.read_csv(data_path + 'exiobase_A38.csv', comment='#',header=[0,1], index_col=0, sep=';')
     # corresp_table=np.transpose(corresp_table)
     # sector_agg = corresp_table.values
 
     # ## Aggregation into two regions: FR and RoW
-    # region_table = pd.read_csv(DATA_PATH + 'exiobase_FRvsRoW.csv', comment='#', index_col=0, sep=';')
+    # region_table = pd.read_csv(data_path + 'exiobase_FRvsRoW.csv', comment='#', index_col=0, sep=';')
     # region_table=np.transpose(region_table)
     # region_agg = region_table.values
     
@@ -269,7 +269,7 @@ if not os.path.exists(data_folder + os.sep + light_exiobase_folder):
     io_orig.GHG_emissions.calc_system(x=io_orig.x, Y=io_orig.Y, L=io_orig.L, Y_agg=None, population=io_orig.population)
     io_orig.GHG_emissions.calc_income_based(x = io_orig.x, V=io_orig.V, G=io_orig.G, V_agg=None, population=io_orig.population)
 
-    V_agg = io_orig.V.sum(level=0, axis=1, ).reindex(io_orig.get_regions(), axis=1)
+    V_agg = io_orig.V.sum(level='region', axis=1, ).reindex(io_orig.get_regions(), axis=1)
     io_orig.GHG_emissions.D_iba_zero_order = pymrio.tools.iomath.calc_D_iba(io_orig.GHG_emissions.S, pd.DataFrame(np.identity(np.shape(io_orig.G.values)[0])), V_agg, io_orig.get_sectors().size)
     io_orig.GHG_emissions.D_iba_first_order = pymrio.tools.iomath.calc_D_iba(io_orig.GHG_emissions.S, io_orig.B, V_agg, io_orig.get_sectors().size)
     
@@ -289,12 +289,12 @@ else:
 ###### AGGREGATION POST CALCULATION
 ##########################
 ## Aggregation into 35 sectors (closest correspondance with A38 nomenclature)
-corresp_table = pd.read_csv(DATA_PATH + 'exiobase_A38.csv', comment='#',header=[0,1], index_col=0, sep=';')
+corresp_table = pd.read_csv(data_path + 'exiobase_A38.csv', comment='#',header=[0,1], index_col=0, sep=';')
 corresp_table=np.transpose(corresp_table)
 sector_agg = corresp_table.values
 
 #  Aggregation into two regions: FR and RoW
-region_table = pd.read_csv(DATA_PATH + 'exiobase_FRvsRoW.csv', comment='#', index_col=0, sep=';')
+region_table = pd.read_csv(data_path + 'exiobase_FRvsRoW.csv', comment='#', index_col=0, sep=';')
 region_table=np.transpose(region_table)
 region_agg = region_table.values
 
@@ -350,13 +350,13 @@ sns.barplot(x="sector", hue="region", y="emission content", data=inc_emis_cont)
 plt.xlabel("Sector code", size=12)
 plt.ylabel("g$\mathrm{CO}_2$eq/\euro", size=12)
 plt.title("Emission content - France vs Rest of World", size=12)
-plt.savefig(OUTPUTS_PATH+'fig_emis_cont_FRvsRoW.jpeg', bbox_inches='tight')
+plt.savefig(output_path+'fig_emis_cont_FRvsRoW.jpeg', bbox_inches='tight')
 plt.show()
 
 carbon_intensity_by_countries = inc_emis_cont.pivot(index='sector',columns='region').droplevel(level=0,axis=1)
 
 carbon_intensity_by_countries.columns.name=None
-ut.df_to_csv_with_comment( carbon_intensity_by_countries[ (carbon_intensity_by_countries['FR']!=0) | (carbon_intensity_by_countries['RoW'] !=0 )], OUTPUTS_PATH + 'carbon_intensity_by_countries.csv', '% file automatically generated by ' + this_file + eol + '% downstream carbon intensity by industries, for France and RoW')
+ut.df_to_csv_with_comment( carbon_intensity_by_countries[ (carbon_intensity_by_countries['FR']!=0) | (carbon_intensity_by_countries['RoW'] !=0 )], output_path + 'carbon_intensity_by_countries.csv', '% file automatically generated by ' + this_file + eol + '% downstream carbon intensity by industries, for France and RoW')
 
 ######
 ### Emission content - Histogramme FRANCE
@@ -369,7 +369,7 @@ sns.barplot(x="sector", y="emission content", data=inc_emis_cont_fr,palette='dee
 plt.xlabel("Sector code", size=12)
 plt.ylabel("g$\mathrm{CO}_2$eq/\euro", size=12)
 plt.title("Total emission content - France", size=12)
-plt.savefig(OUTPUTS_PATH+'fig_emis_cont_FR_tot.jpeg', bbox_inches='tight')
+plt.savefig(output_path+'fig_emis_cont_FR_tot.jpeg', bbox_inches='tight')
 plt.show()
 plt.close()
 
@@ -384,7 +384,7 @@ plt.xlabel("Sector code", size=12)
 plt.xticks(rotation=0,fontsize=12)
 plt.ylabel("g$\mathrm{CO}_2$eq/\euro", size=12)
 plt.title("Total emission content decomposition- France", size=12)
-plt.savefig(OUTPUTS_PATH+'fig_emis_cont_decomp_FR_tot.jpeg', bbox_inches='tight')
+plt.savefig(output_path+'fig_emis_cont_decomp_FR_tot.jpeg', bbox_inches='tight')
 plt.show()
 plt.close()
 
@@ -410,7 +410,7 @@ for r in region_list:
     plt.xticks(rotation=0,fontsize=12)
     plt.ylabel("g$\mathrm{CO}_2eq$/\euro", size=12)
     plt.title("Total enabled emission decomposition - "+r, size=12)
-    plt.savefig(OUTPUTS_PATH+'fig_emis_cont_enabled_'+r+'_tot.jpeg', bbox_inches='tight')
+    plt.savefig(output_path+'fig_emis_cont_enabled_'+r+'_tot.jpeg', bbox_inches='tight')
     plt.show()
     plt.close()
 
@@ -458,15 +458,15 @@ for item in corresp_table.index:
 
 emis_cont_fr_to_save_without_zero = emis_cont_fr_to_save[emis_cont_fr_to_save['Downstream carbon intensity'] !=0]
 
-emis_cont_fr_to_save_without_zero[:10].to_latex(OUTPUTS_PATH+"top10_emis_cont.tex",index=False,float_format = "{:.1f}".format,column_format='lL{2cm}L{2cm}L{2cm}L{2cm}')
+emis_cont_fr_to_save_without_zero[:10].to_latex(output_path+"top10_emis_cont.tex",index=False,float_format = "{:.1f}".format,column_format='lL{2cm}L{2cm}L{2cm}L{2cm}')
 
-emis_cont_fr_to_save_without_zero[-10:].to_latex(OUTPUTS_PATH+"least10_emis_cont.tex",index=False,float_format = "{:.1f}".format,column_format='lL{2cm}L{2cm}L{2cm}L{2cm}')
+emis_cont_fr_to_save_without_zero[-10:].to_latex(output_path+"least10_emis_cont.tex",index=False,float_format = "{:.1f}".format,column_format='lL{2cm}L{2cm}L{2cm}L{2cm}')
 
 #this is when Industry is recoded
 ##not to truncate long string
 #with pd.option_context("max_colwidth", 1000):
-#    emis_cont_fr_to_save_without_zero[:10].to_latex(OUTPUTS_PATH+"top10_emis_cont.tex",index=False,float_format = "{:.1f}".format,column_format='L{4cm}L{2cm}L{2cm}L{2cm}L{2cm}')
-#    emis_cont_fr_to_save_without_zero[-10:].to_latex(OUTPUTS_PATH+"least10_emis_cont.tex",index=False,float_format = "{:.1f}".format,column_format='L{4cm}L{2cm}L{2cm}L{2cm}L{2cm}')
+#    emis_cont_fr_to_save_without_zero[:10].to_latex(output_path+"top10_emis_cont.tex",index=False,float_format = "{:.1f}".format,column_format='L{4cm}L{2cm}L{2cm}L{2cm}L{2cm}')
+#    emis_cont_fr_to_save_without_zero[-10:].to_latex(output_path+"least10_emis_cont.tex",index=False,float_format = "{:.1f}".format,column_format='L{4cm}L{2cm}L{2cm}L{2cm}L{2cm}')
 
 
 VA = pd.DataFrame(io_orig.V.sum(axis=1, level=0).sum(axis=1),columns=['value added'])
@@ -486,4 +486,4 @@ print('Standard deviation of emission content in RoW (gCO2/euro of VA):', round(
 ###### SAVED file - to link with INSEE survey 
 ##########################
 ut.df_to_csv_with_comment(inc_emis_cont_fr, output_folder + os.sep + 'emission_content_france.csv', '# file automatically generated by ' + os.path.basename( os.getcwd()), sep=';')
-#inc_emis_cont.to_excel(OUTPUTS_PATH+'inc_emis_cont_pre.xlsx')
+#inc_emis_cont.to_excel(output_path+'inc_emis_cont_pre.xlsx')
