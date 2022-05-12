@@ -222,10 +222,21 @@ if not os.path.exists(data_folder + os.sep + light_exiobase_folder):
     F_Y_sec_and_reg.fillna(0, inplace =True)
     #at this stage element i, j of F_Y_sec_and_reg contains direct emissions of household of country j coming from final consumption adressed to country x sector i
     
+    #reorder columns to get the same order as in rows
+    F_Y_sec_and_reg = F_Y_sec_and_reg.reindex( columns = F_Y_sec_and_reg.index.get_level_values('region').drop_duplicates() ) 
     #diagonalise by sector to have same format as F
     F_Y_final = pymrio.tools.ioutil.diagonalize_blocks(F_Y_sec_and_reg.values, blocksize = io_orig.get_sectors().size).transpose()
-    #transform into a dataFrame with correct indices
-    F_Y_final = pd.DataFrame(F_Y_final, index=io_orig.GHG_emissions.F.index, columns=io_orig.GHG_emissions.F.columns)
+
+    #transform into a dataFrame with correct indices (from F_Y_sec_and_reg)
+    F_Y_final = pd.DataFrame(F_Y_final, index=F_Y_sec_and_reg.index, columns=io_orig.GHG_emissions.F.columns)
+    
+    #add this as a security check in case the indices are not in the same way
+    MRIO_index = io_orig.GHG_emissions.F.index
+    if (F_Y_sec_and_reg.index != MRIO_index).any():
+        print('reindexing F_Y_final')
+        F_Y_final = F_Y_final.reindex(MRIO_index)
+        F_Y_final = F_Y_final.reindex(columns = MRIO_index)
+
     #save in extensions
     io_orig.GHG_emissions.F_Y_final = F_Y_final
 
