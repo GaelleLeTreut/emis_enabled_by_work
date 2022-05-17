@@ -18,31 +18,31 @@ output_folder='outputs'
 if not os.path.exists(output_folder):
     os.makedirs(output_folder)
     print('Creating ' + output_folder + ' to store outputs')
-OUTPUTS_PATH = output_folder + os.sep
+output_path = output_folder + os.sep
 
 data_folder = 'data'
-DATA_PATH = data_folder + os.sep
+data_path = data_folder + os.sep
 
 ###############
 # retrieving data
 ###############
 
-if not os.path.isfile(OUTPUTS_PATH + 'emission_content_france.csv'):
+if not os.path.isfile(output_path + 'carbon_intensity_france.csv'):
     exec(open("income_based_intensity.py").read())
-emis_cont = pd.read_csv( OUTPUTS_PATH + 'emission_content_france.csv', sep=';', index_col=0, comment='#')
+carbon_intensity_france = pd.read_csv( output_path + 'carbon_intensity_france.csv', sep=';', index_col=0, comment='#')
 
 
 #convertir le fichier dBase de l'Insee en csv s'il ne l'est pas déjà
 #bien vérifier la présence du module dbf_to_csv.py dans le répertoire
-if os.path.isfile(DATA_PATH + 'salaries15.csv')==True:
+if os.path.isfile(data_path + 'salaries15.csv')==True:
     print('file salaries15 is already available in csv format')
 else:
-    dbf_to_csv(DATA_PATH + 'salaries15.dbf')
+    dbf_to_csv(data_path + 'salaries15.dbf')
     print('file salaries15 is now available in csv format')
 
 #Importer base salaires15 INSEE (euro 2015)
 #https://www.insee.fr/fr/statistiques/3536754#dictionnaire
-full_insee_table = pd.read_csv(DATA_PATH + 'salaries15.csv',sep=',', low_memory=False)
+full_insee_table = pd.read_csv(data_path + 'salaries15.csv',sep=',', low_memory=False)
 full_insee_table = full_insee_table.dropna(subset=['A38'])
 
 #############
@@ -74,38 +74,38 @@ full_insee_table['salary_value']=full_insee_table['TRNNETO'].replace(dic_TRNNETO
 
 
 #############
-# adding fields of emission content and income-based emissions
+# adding fields of carbon intensity and income-based emissions
 #############
 
 insee_classification_to_passage_classification={"AZ":"AZ","BZ":"BZ","CA":"CA","CB":"CB","CC":"CC","CD":"CD","CE":"CE-CF","CF":"CE-CF","CE-CF":"CE-CF","CG":"CG","CH":"CH","CI":"CI","CJ":"CJ","CK":"CK","CL":"CL","CM":"CM","DZ":"DZ","EZ":"EZ","FZ":"FZ","GZ":"GZ","HZ":"HZ","IZ":"IZ","JA":"JA","JB":"JB","JC":"JC","KZ":"KZ","LZ":"LZ","MA":"MA-MC","MB":"MB","MC":"MA-MC","MA-MC":"MA-MC","NZ":"NZ","OZ":"OZ","PZ":"PZ","QA":"QA-QB","QB":"QA-QB","QA-QB":"QA-QB","RZ":"RZ","SZ":"SZ","TZ":"TZ","UZ":"UZ"}
 
 
-def create_dic_from_sector_to_emission_content(sector_table,emission_content_table, passage_dic = insee_classification_to_passage_classification, sector_label_in_sector_table = 'A38', sector_label_in_emission_content_label='sector', emission_content_label='emission content'):
+def create_dic_from_sector_to_carbon_intensity(sector_table,carbon_intensity_table, passage_dic = insee_classification_to_passage_classification, sector_label_in_sector_table = 'A38', sector_label_in_carbon_intensity_label='sector', carbon_intensity_label='carbon intensity'):
     """
-    Return a dictionary that associates each sector of sector_table to their emission content given by emission_content_label
-    by default, assume that sector column in sector_table is labeled by 'A38', that sector column in emission_content_sector is labeled by 'Code_Sector', that emission content column in emission_content sector is labeled by 'emission content'. Finally, it assumes that the dictionary from sector_table nomenclature of sectors to emission_content_table nomenclature is insee_classification_to_passage_classifcation
+    Return a dictionary that associates each sector of sector_table to their carbon intensity given by carbon_intensity_label
+    by default, assume that sector column in sector_table is labeled by 'A38', that sector column in carbon_intensity_sector is labeled by 'Code_Sector', that carbon intensity column in carbon_intensity sector is labeled by 'carbon intensity'. Finally, it assumes that the dictionary from sector_table nomenclature of sectors to carbon_intensity_table nomenclature is insee_classification_to_passage_classifcation
     """
-    dic_to_emission_content = {}
+    dic_to_carbon_intensity = {}
     for x in sector_table[sector_label_in_sector_table].unique():
         try:
             passage_sector = insee_classification_to_passage_classification[x]
-            emission_content = emission_content_table[emission_content_table[sector_label_in_emission_content_label]==passage_sector][emission_content_label].reset_index(drop=True)[0]
-            dic_to_emission_content[x] = emission_content
+            carbon_intensity = carbon_intensity_table[carbon_intensity_table[sector_label_in_carbon_intensity_label]==passage_sector][carbon_intensity_label].reset_index(drop=True)[0]
+            dic_to_carbon_intensity[x] = carbon_intensity
         except KeyError:
-            print('Impossible to retrieve emission content of sector ' +x)
-            dic_to_emission_content[x]= np.nan
-    return dic_to_emission_content
+            print('Impossible to retrieve carbon intensity of sector ' +x)
+            dic_to_carbon_intensity[x]= np.nan
+    return dic_to_carbon_intensity
 
-#create dictionary of emission content and add emission content of branches for each observation
-dic_to_emission_content = create_dic_from_sector_to_emission_content(full_insee_table, emis_cont) 
-full_insee_table['emission_content'] = full_insee_table['A38'].replace(dic_to_emission_content)
+#create dictionary of carbon intensity and add carbon intensity of branches for each observation
+dic_to_carbon_intensity = create_dic_from_sector_to_carbon_intensity(full_insee_table, carbon_intensity_france) 
+full_insee_table['carbon_intensity'] = full_insee_table['A38'].replace(dic_to_carbon_intensity)
 full_insee_table['A35'] = full_insee_table['A38'].replace(insee_classification_to_passage_classification)
-dic_to_emission_content_A35 = create_dic_from_sector_to_emission_content(full_insee_table, emis_cont, sector_label_in_sector_table='A35') 
+dic_to_carbon_intensity_A35 = create_dic_from_sector_to_carbon_intensity(full_insee_table, carbon_intensity_france, sector_label_in_sector_table='A35') 
 
 #add income-based emissions for each observation
 #Scaling factor to convert emissions in MtCO2 to tCO2
 Scaling_factor=10**(-6)
-full_insee_table['income-based_emissions'] = full_insee_table['salary_value'] * full_insee_table['emission_content'] * Scaling_factor
+full_insee_table['income-based_emissions'] = full_insee_table['salary_value'] * full_insee_table['carbon_intensity'] * Scaling_factor
 
 #########
 # comparison of totals (commented at this stage)
