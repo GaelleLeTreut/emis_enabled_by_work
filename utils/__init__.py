@@ -19,16 +19,16 @@ def ratio_of_mass(lower_bound, higher_bound, label_to_sum, label_of_bound, data)
     return high_mass / low_mass
     
 
-def mean_emission_content(table):
+def mean_carbon_intensity(table):
    """
-   compute the mean emission content (weighted by value-added (here wages)
+   compute the mean carbon intensity (weighted by value-added (here wages)
    """
-   mean = np.sum(table['emission_content'] * table['salary_value'] )/ np.sum(table['salary_value'])
-   return pd.Series([mean,len(table)],index=['mean emission content','pop_mass'])
+   mean = np.sum(table['carbon_intensity'] * table['salary_value'] )/ np.sum(table['salary_value'])
+   return pd.Series([mean,len(table)],index=['mean carbon intensity','pop_mass'])
 
 def mean_salary(table):
    """
-   compute the mean emission content (weighted by value-added (here wages)
+   compute the mean carbon intensity (weighted by value-added (here wages)
    """
    mean = np.sum(table['salary_value'] )/ len(table)
    return pd.Series([mean],index=['mean wages'])
@@ -135,8 +135,9 @@ def make_Lorenz_and_concentration_curves(table,dic_index,file_name, comment):
     income_cum_by_income = np.cumsum(table_sorted_by_income[income_index, :]*table_sorted_by_income[pop_index,:])/np.sum(table_sorted_by_income[income_index,:]*table_sorted_by_income[pop_index,:])
     #reconstituted_cum = np.cumsum(table_sorted_by_income[0,:]**0.34)/np.sum(table_sorted_by_income[0,:]**0.34)
     emissions_cum_by_income = np.cumsum(table_sorted_by_income[emissions_index,:]*table_sorted_by_income[pop_index,:])/np.sum(table_sorted_by_income[emissions_index,:]*table_sorted_by_income[pop_index,:])
-    Lorenz_curve_data=pd.DataFrame({'pop_cum_by_income':pop_cum_by_income, 'pop_cum_by_emissions':pop_cum_by_emissions, 'emissions_cum_by_emissions':emissions_cum_by_emissions, 'emissions_cum_by_income':emissions_cum_by_income, ' income_cum_by_income': income_cum_by_income})
+    Lorenz_curve_data=pd.DataFrame({'pop_cum_by_income':pop_cum_by_income, 'pop_cum_by_emissions':pop_cum_by_emissions, 'emissions_cum_by_emissions':emissions_cum_by_emissions, 'emissions_cum_by_income':emissions_cum_by_income, 'income_cum_by_income': income_cum_by_income})
     df_to_csv_with_comment(Lorenz_curve_data, file_name+'.csv', comment, index=False)
+    return Lorenz_curve_data
    
    #figure no longer drawn
     #fig = plt.figure()
