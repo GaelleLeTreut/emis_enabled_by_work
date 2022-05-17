@@ -289,9 +289,21 @@ else:
 ###### AGGREGATION POST CALCULATION
 ##########################
 ## Aggregation into 35 sectors (closest correspondance with A38 nomenclature)
-corresp_table = pd.read_csv(data_path + 'exiobase_A38.csv', comment='#',header=[0,1], index_col=0, sep=';')
+corresp_table = pd.read_csv(data_path + 'exiobase_A38.csv', comment='#',header=[0,1,2], index_col=0, sep=';')
 corresp_table=np.transpose(corresp_table)
 sector_agg = corresp_table.values
+
+#to replace industry code by their short label
+#build a dictionary, in the same time print a correspondance for Reading note
+code_to_label_dic = {}
+long_string = ''
+for item in corresp_table.index:
+    code, long_label, short_label = item
+    code_to_label_dic[code] = short_label + " (" + code +")"
+    long_string += code + ': '+ short_label +'; '
+with open(output_path + 'caption_industry_details.tex',"w",encoding="utf8") as file:
+    #trim long_string to remove UZ and last semi-colon
+    file.write( long_string.rsplit(';',2)[0] )
 
 #  Aggregation into two regions: FR and RoW
 region_table = pd.read_csv(data_path + 'exiobase_FRvsRoW.csv', comment='#', index_col=0, sep=';')
@@ -306,184 +318,177 @@ io_orig.aggregate(region_agg=region_agg, sector_agg=sector_agg, region_names = l
 region_list = list(io_orig.get_regions())
 
 ##########################
-###### Emission content and decomposition
 ##########################
-#### 10¨3gco2/10¨6euro =  X gCO2/keuro => X * 1e-3 gCO2/e 
-######
-### Décomposition  Emission  content (in gCO2/euro)  = S + SB + SB^2 + ..
-######
-V_agg = io_orig.V.sum(level=0, axis=1, ).reindex(io_orig.get_regions(), axis=1)
+###### saving data for article
+##########################
+##########################
 
-inc_emis_cont = pd.DataFrame(np.transpose(pymrio.tools.iomath.recalc_N(io_orig.GHG_emissions.S, io_orig.GHG_emissions.D_iba, V_agg, io_orig.get_sectors().size).sum(level=0,axis=1).sum(level=1,axis=0)*1e-3).stack(),columns=['emission content'])
-
-inc_emis_content_direct = pd.DataFrame(np.transpose(pymrio.tools.iomath.recalc_N(io_orig.GHG_emissions.S, io_orig.GHG_emissions.D_iba_zero_order, V_agg, io_orig.get_sectors().size).sum(level=0,axis=1).sum(level=1,axis=0)*1e-3).stack(),columns=['Direct emis content'])
-
-inc_emis_content_fo = pd.DataFrame(np.transpose(pymrio.tools.iomath.recalc_N(io_orig.GHG_emissions.S, io_orig.GHG_emissions.D_iba_first_order, V_agg, io_orig.get_sectors().size).sum(level=0,axis=1).sum(level=1,axis=0)*1e-3).stack(),columns=['FO emis content'])
-
-## GLT : make a D_iba_second_order and then have the rest?
-inc_emis_content_so = pd.DataFrame(np.transpose(pymrio.tools.iomath.recalc_N(io_orig.GHG_emissions.S, io_orig.GHG_emissions.D_iba - io_orig.GHG_emissions.D_iba_zero_order - io_orig.GHG_emissions.D_iba_first_order, V_agg, io_orig.get_sectors().size).sum(level=0,axis=1).sum(level=1,axis=0)*1e-3).stack(),columns=['Rest emis content'])
-
-
-
-inc_emis_cont_decomp = inc_emis_content_direct.copy()
-inc_emis_cont_decomp.loc[:,'FO emis content'] = inc_emis_content_fo['FO emis content']
-inc_emis_cont_decomp.loc[:,'Rest emis content'] =inc_emis_cont['emission content'] - ( inc_emis_content_direct['Direct emis content'] + inc_emis_content_fo['FO emis content']) 
-
-
-## income based emission in France in MtCO2
-income_based_emis_FR =io_orig.GHG_emissions.D_iba.sum(axis=1).loc[['FR']]*1e-9
-#io_orig.GHG_emissions.D_iba.sum(axis=0,level='region')
-#pour avoir les D_iba avec seulement le pays pour l'origine des émissions
+V_agg = io_orig.V.sum(level='region', axis=1)
 
 ##########################
-###### PLOTS 
+### downstream carbon intensity for aggregate sector and countries
 ##########################
-sns.set_context('paper', font_scale=0.9)
+# compute and convert in gCO2/euro
+# original units of EXIOBASE: kgco2 / M euro =  X gCO2/k euro => X * 1e-3 gCO2/euro 
+downstream_carbon_intensity = pymrio.tools.iomath.recalc_N(io_orig.GHG_emissions.S, io_orig.GHG_emissions.D_iba, V_agg, io_orig.get_sectors().size)*1e-3
 
-######
-### Emission content - Histogramme groupé FR vs ROW
-######
-check=inc_emis_cont.reset_index(inplace=True)
-
-plt.figure(figsize=(18, 12))
-sns.barplot(x="sector", hue="region", y="emission content", data=inc_emis_cont)
-plt.xlabel("Sector code", size=12)
-plt.ylabel("g$\mathrm{CO}_2$eq/\euro", size=12)
-plt.title("Emission content - France vs Rest of World", size=12)
-plt.savefig(output_path+'fig_emis_cont_FRvsRoW.jpeg', bbox_inches='tight')
-plt.show()
-
-carbon_intensity_by_countries = inc_emis_cont.pivot(index='sector',columns='region').droplevel(level=0,axis=1)
-
+#downstream carbon intensity with different countries (FR, RoW) in columns
+carbon_intensity_by_countries = downstream_carbon_intensity.sum(axis=0).unstack(level='region')
 carbon_intensity_by_countries.columns.name=None
 ut.df_to_csv_with_comment( carbon_intensity_by_countries[ (carbon_intensity_by_countries['FR']!=0) | (carbon_intensity_by_countries['RoW'] !=0 )], output_path + 'carbon_intensity_by_countries.csv', '% file automatically generated by ' + this_file + eol + '% downstream carbon intensity by industries, for France and RoW')
 
-######
-### Emission content - Histogramme FRANCE
-######
-### Emissions content by sector
-inc_emis_cont_fr= inc_emis_cont.loc[inc_emis_cont['region']=='FR']
-
-plt.figure(figsize=(18, 12))
-sns.barplot(x="sector", y="emission content", data=inc_emis_cont_fr,palette='deep')
-plt.xlabel("Sector code", size=12)
-plt.ylabel("g$\mathrm{CO}_2$eq/\euro", size=12)
-plt.title("Total emission content - France", size=12)
-plt.savefig(output_path+'fig_emis_cont_FR_tot.jpeg', bbox_inches='tight')
-plt.show()
-plt.close()
-
-######
-### Decomposition - Emission content FRANCE
-######
-inc_emis_cont_decomp_fr= np.transpose(inc_emis_cont_decomp.loc[('FR')])
-
-sns.set()
-inc_emis_cont_decomp_fr.T.plot(kind='bar', stacked=True, figsize=(18, 12))
-plt.xlabel("Sector code", size=12)
-plt.xticks(rotation=0,fontsize=12)
-plt.ylabel("g$\mathrm{CO}_2$eq/\euro", size=12)
-plt.title("Total emission content decomposition- France", size=12)
-plt.savefig(output_path+'fig_emis_cont_decomp_FR_tot.jpeg', bbox_inches='tight')
-plt.show()
-plt.close()
-
-######
-### Decomposition enabled emissions by country (in gCO2/euro)
-######
-emis_enable = (io_orig.GHG_emissions.N*1e-3).sum(level=0,axis=1)
-emis_enable = emis_enable.add_prefix('Total enabled emission of ')
-emis_enable.reset_index(level=1, inplace=True)
-emis_enable = emis_enable.rename_axis(index=None)
-
-for r in region_list:
- 
-    emis_enable_r=  emis_enable[['sector','Total enabled emission of '+str(r)]]
-    emis_enable_r = np.transpose(np.transpose(emis_enable_r).add_prefix('emis cont from '))
-    emis_enable_r['region']=emis_enable_r.index
-    emis_enable_r= emis_enable_r.pivot(index='sector', columns='region')
-    emis_enable_r = emis_enable_r.droplevel(level=0,axis=1)
-    emis_enable_r= np.transpose(emis_enable_r)
-
-    emis_enable_r.T.plot(kind='bar', stacked=True, figsize=(18, 12))
-    plt.xlabel("Sector code", size=12)
-    plt.xticks(rotation=0,fontsize=12)
-    plt.ylabel("g$\mathrm{CO}_2eq$/\euro", size=12)
-    plt.title("Total enabled emission decomposition - "+r, size=12)
-    plt.savefig(output_path+'fig_emis_cont_enabled_'+r+'_tot.jpeg', bbox_inches='tight')
-    plt.show()
-    plt.close()
-
-
 ##########################
-###### TABLES to save
+### building table decomposing carbon intensity of sector in France
 ##########################
-share_direct_emis = pd.DataFrame(inc_emis_cont_decomp_fr.loc['Direct emis content'].div(inc_emis_cont_fr['emission content'].replace(0, np.nan).values)*100)
-share_direct_emis = share_direct_emis.astype(float).round(1)
-share_direct_emis.columns=['% direct emissions']
+direct_carbon_intensity = pymrio.tools.iomath.recalc_N(io_orig.GHG_emissions.S, io_orig.GHG_emissions.D_iba_zero_order, V_agg, io_orig.get_sectors().size)*1e-3
+first_carbon_intensity = pymrio.tools.iomath.recalc_N(io_orig.GHG_emissions.S, io_orig.GHG_emissions.D_iba_first_order, V_agg, io_orig.get_sectors().size)*1e-3
 
-share_1stdownstream_emis = pd.DataFrame(inc_emis_cont_decomp_fr.loc['FO emis content'].div(inc_emis_cont_fr['emission content'].replace(0, np.nan).values)*100)
-share_1stdownstream_emis = share_1stdownstream_emis.astype(float).round(1)
-share_1stdownstream_emis.columns=['% downstream at first level']
+#Series of downstream carbon intensity for France
+carbon_intensity_France = downstream_carbon_intensity.sum(axis=0).loc['FR',:]
+share_direct = direct_carbon_intensity.sum(axis=0).loc['FR',:] / carbon_intensity_France * 100
+share_first_order = first_carbon_intensity.sum(axis=0).loc['FR',:] / carbon_intensity_France * 100
+share_domestic = downstream_carbon_intensity.sum(axis=0,level='region').loc['FR','FR'] / carbon_intensity_France * 100
+#Series of income based emissions in MtCO2
+ib_emissions_France = io_orig.GHG_emissions.D_iba.sum(axis=0).loc['FR',:]*1e-9
+total_ibe_France = np.sum(ib_emissions_France)
+share_emissions_France = ib_emissions_France / total_ibe_France * 100
 
-##########################
-### to review 
-emis_enable_fr_fr = emis_enable.loc['FR'][['sector','Total enabled emission of FR']]
-emis_enable_fr_fr = emis_enable_fr_fr.set_index(emis_enable_fr_fr['sector'])
-emis_enable_fr_fr = emis_enable_fr_fr.drop('sector',axis=1)
-emis_enable_fr_fr = emis_enable_fr_fr.squeeze()
-##########################
-share_dom_emis = pd.DataFrame(emis_enable_fr_fr.div(inc_emis_cont_fr['emission content'].replace(0, np.nan).values)*100)
-share_dom_emis =share_dom_emis.astype(float).round(1)
-share_dom_emis.columns=['% domestic emissions']
+#build and format for output in Latex
+decomposition_carbon_intensity_France = pd.concat([carbon_intensity_France, share_direct, share_first_order, share_domestic, ib_emissions_France,share_emissions_France],axis=1, keys=['Downstream carbon intensity', '\% direct emissions', '\% first-level emissions', '\% domestic emissions', 'Income-based emissions (Mt\COe)', '\% of total emissions'])
+decomposition_carbon_intensity_France.sort_values(by=['Downstream carbon intensity'], ascending = False, inplace = True )
 
-emis_cont_fr_to_save = inc_emis_cont_fr.copy()
-emis_cont_fr_to_save.drop('region',axis=1)
-emis_cont_fr_to_save['% direct emissions']=  share_direct_emis['% direct emissions'].values
-emis_cont_fr_to_save['% downstream at first level']=  share_1stdownstream_emis['% downstream at first level'].values
-emis_cont_fr_to_save['% domestic emissions']=  share_dom_emis['% domestic emissions'].values
-emis_cont_fr_to_save = emis_cont_fr_to_save.drop(['region'], axis=1)
-emis_cont_fr_to_save = emis_cont_fr_to_save.sort_values(by=['emission content'], ascending = False )
+decomposition_carbon_intensity_France = decomposition_carbon_intensity_France.droplevel(level='region')
+decomposition_carbon_intensity_France.index.name = 'Industry'
+decomposition_carbon_intensity_France.reset_index(inplace = True)
 
-emis_cont_fr_to_save.rename(columns={'sector':'Industry','emission content':'Downstream carbon intensity'},inplace=True)
+decomposition_carbon_intensity_France['Industry'].replace(code_to_label_dic, inplace=True)
+decomposition_carbon_intensity_France = decomposition_carbon_intensity_France[decomposition_carbon_intensity_France['Downstream carbon intensity'] !=0]
 
-#replace sector code by their full label
-#build a dictionary
-code_to_label_dic = {}
-for item in corresp_table.index:
-     code, label = item
-     code_to_label_dic[code]=label + " (" + code +")"
-#emis_cont_fr_to_save['Industry'].replace(code_to_label_dic, inplace=True)
+##not to truncate long string when Industry is recoded
+with pd.option_context("max_colwidth", 1000):
+    decomposition_carbon_intensity_France.to_latex(output_path+"industry_carbon_intensity.tex",index=False,float_format = "{:.1f}".format,column_format='L{4cm}L{2cm}L{2cm}L{2cm}L{2cm}L{2cm}L{2cm}', escape=False)
+
+###
+###to investigate which products of Exiobase are included in aggregate industries
+###
+def Exiobase_product_from_industry_code(code):
+    code_corresp = corresp_table.loc[code]
+    for prod in code_corresp[code_corresp.ne(0)].dropna(axis=1).columns:
+        print(prod)
+
+#####################
+###analyzing income-based emissions of primary inputs and industry
+#####################
+
+#aggregate value added over inputs and aggregate some inputs
+# Value added in M€
+V_agg_by_all_inputs = io_orig.V.sum(axis=1,level='category')#remove useless 'region' level in axis 1
+#define how to aggregate primary inputs
+input_groups = {'Net taxes': ['Taxes less subsidies on products purchased: Total', 'Other net taxes on production'],
+        'Compensation of employees': ["Compensation of employees; wages, salaries, & employers' social contributions: Low-skilled", "Compensation of employees; wages, salaries, & employers' social contributions: Medium-skilled", "Compensation of employees; wages, salaries, & employers' social contributions: High-skilled"],
+#"Compensation of employees; wages, salaries, & employers' social contributions: Low-skilled":["Compensation of employees; wages, salaries, & employers' social contributions: Low-skilled"],
+#"Compensation of employees; wages, salaries, & employers' social contributions: Medium-skilled":["Compensation of employees; wages, salaries, & employers' social contributions: Medium-skilled"],
+#"Compensation of employees; wages, salaries, & employers' social contributions: High-skilled":["Compensation of employees; wages, salaries, & employers' social contributions: High-skilled"],
+        'Operating surplus':['Operating surplus: Consumption of fixed capital', 'Operating surplus: Royalties on resources','Operating surplus: Rents on land', 'Operating surplus: Remaining net operating surplus'],}
+        
+V_agg_by_inputs = pd.DataFrame({k: V_agg_by_all_inputs[v].sum(axis=1) for k, v in input_groups.items()})
+
+#io_orig.V.sum(axis=1,level='category') #in M€
+ib_emissions_by_industry_and_inputs = V_agg_by_inputs.multiply(downstream_carbon_intensity.sum(axis=0), axis = 0) * 1e-6 #multiply value added by downstream carbon intensity, resulting emissions in MtCO2
+#also store total value added to perform same operations on it
+ib_emissions_by_industry_and_inputs.loc[('FR','value added'),:] = V_agg_by_inputs.sum(axis=0,level='region').loc['FR',:]
+ib_emissions_by_industry_and_inputs.loc[('RoW','value added'),:] = V_agg_by_inputs.sum(axis=0,level='region').loc['RoW',:]
+
+ib_emissions_matrix_France = ib_emissions_by_industry_and_inputs.loc['FR',:].drop('value added')
+ib_emissions_matrix_France['Total income-based emissions of industry'] = ib_emissions_matrix_France.sum(axis=1)
+ib_emissions_matrix_France['Share of industry in total income-based emissions of France'] = ib_emissions_matrix_France['Total income-based emissions of industry'] / total_ibe_France * 100
+ib_emissions_matrix_France.loc['Total income-based emissions of inputs',:]=ib_emissions_matrix_France.sum(axis=0)
+ib_emissions_matrix_France.loc['Share of inputs in total income-based emissions of France',:] = ib_emissions_matrix_France.loc['Total income-based emissions of inputs',:] / total_ibe_France * 100
+ib_emissions_matrix_France.loc['Share of inputs in total income-based emissions of France', 'Share of industry in total income-based emissions of France']= ''
+
+ib_emissions_matrix_France.index.name = 'Industry'
+ib_emissions_matrix_France.reset_index(inplace = True)
+
+ib_emissions_matrix_France['Industry'].replace(code_to_label_dic, inplace=True)
+ib_emissions_matrix_France = ib_emissions_matrix_France[ib_emissions_matrix_France['Total income-based emissions of industry'] !=0]
+
+with pd.option_context("max_colwidth", 1000):
+    ib_emissions_matrix_France.to_latex(output_path+"emissions_matrix.tex",index=False,float_format = "{:.1f}".format,column_format='L{4cm}L{2cm}L{2cm}L{2cm}L{2cm}L{2cm}L{2cm}L{2cm}L{2cm}')
+
+#diagnosis of the contribution of inputs
+mean_ci = io_orig.GHG_emissions.D_iba.sum(axis=0).sum(level='region') / V_agg.sum(axis=0)*1e-3
+decomposition_gap_va=(V_agg_by_inputs.loc['FR',:].multiply(1/V_agg.loc['FR','FR']*100,axis=0)).subtract(V_agg_by_inputs.loc['FR',:].sum(axis=0)/V_agg.loc['FR','FR'].sum(axis=0)*100 , axis =1) #compute the difference between the share of an input in the value-added of a sector and the mean share of that input in total value-added
+value_added_weight=pd.DataFrame(np.outer(V_agg.loc['FR','FR'], 1/(V_agg_by_inputs.loc['FR',:].sum(axis=0))), index= V_agg.loc['FR','FR'].index, columns = V_agg_by_inputs.loc['FR',:].sum(axis=0).index )
+
+decomposition_gap_ci=(decomposition_gap_va * value_added_weight).multiply(carbon_intensity_France.droplevel(level='region')-mean_ci['FR'],axis=0).fillna(0)/100
+
+decomposition_gap_ci['Downstream carbon intensity'] = carbon_intensity_France.droplevel(level='region')-mean_ci['FR']
+decomposition_gap_ci.sort_values(by=['Downstream carbon intensity'], ascending = False, inplace = True )
+decomposition_gap_ci.sum(axis=0) #this give the difference between ci of an input and mean ci #caution: summing carbon intensity (last columns) has no meaning
 
 
-emis_cont_fr_to_save_without_zero = emis_cont_fr_to_save[emis_cont_fr_to_save['Downstream carbon intensity'] !=0]
 
-emis_cont_fr_to_save_without_zero[:10].to_latex(output_path+"top10_emis_cont.tex",index=False,float_format = "{:.1f}".format,column_format='lL{2cm}L{2cm}L{2cm}L{2cm}')
+#####################
+### summarizing contributions of primary inputs to income-based industry
+#####################
+input_contribution_table = pd.DataFrame()
+input_contribution_table = pd.DataFrame( columns=ib_emissions_by_industry_and_inputs.columns)
+input_contribution_table.loc['Enabled emissions (Mt\CO)',:] = ib_emissions_by_industry_and_inputs.loc['FR',:].drop('value added').sum(axis=0)
+input_contribution_table.loc['Share of total emissions (\%)',:] = input_contribution_table.loc['Enabled emissions (Mt\CO)',:] / total_ibe_France * 100
+input_contribution_table.loc['Value added received (G\euro)',:] = ib_emissions_by_industry_and_inputs.loc[('FR','value added'),:] *1e-3
+input_contribution_table.loc['Share of value added (\%)',:] = input_contribution_table.loc['Value added received (G\euro)',:] / np.sum(input_contribution_table.loc['Value added received (G\euro)',:]) * 100
+input_contribution_table.loc['Mean downstream carbon intensity (\si{g\COe\per\euro})',:] = input_contribution_table.loc['Enabled emissions (Mt\CO)',:] / input_contribution_table.loc['Value added received (G\euro)',:] * 1e3
+input_contribution_table.rename(columns =
+        {"Compensation of employees; wages, salaries, & employers' social contributions: Low-skilled" : 'Low-skilled labour',
+         "Compensation of employees; wages, salaries, & employers' social contributions: Medium-skilled": 'Medium-skilled labour',
+         "Compensation of employees; wages, salaries, & employers' social contributions: High-skilled": 'High-skilled labour',
+         "Compensation of employees": 'Labour',
+         'Operating surplus':'Capital',
+         'Net taxes':'Administrative services'
+            }, inplace= True)
+input_contribution_table.index.name=''
+with pd.option_context("max_colwidth", 1000):
+    input_contribution_table.to_latex(output_path+"emission_per_primary_input.tex", index=True, float_format = "{:.1f}".format, column_format='L{4cm}L{2cm}L{2cm}L{2cm}', escape = False)
 
-emis_cont_fr_to_save_without_zero[-10:].to_latex(output_path+"least10_emis_cont.tex",index=False,float_format = "{:.1f}".format,column_format='lL{2cm}L{2cm}L{2cm}L{2cm}')
-
-#this is when Industry is recoded
-##not to truncate long string
-#with pd.option_context("max_colwidth", 1000):
-#    emis_cont_fr_to_save_without_zero[:10].to_latex(output_path+"top10_emis_cont.tex",index=False,float_format = "{:.1f}".format,column_format='L{4cm}L{2cm}L{2cm}L{2cm}L{2cm}')
-#    emis_cont_fr_to_save_without_zero[-10:].to_latex(output_path+"least10_emis_cont.tex",index=False,float_format = "{:.1f}".format,column_format='L{4cm}L{2cm}L{2cm}L{2cm}L{2cm}')
-
-
-VA = pd.DataFrame(io_orig.V.sum(axis=1, level=0).sum(axis=1),columns=['value added'])
-VA['share of VA']= np.nan
-VA['share of VA'] = VA.div(VA.sum(axis=0, level=0), level=0)*100
-
-print('Min emission content in FR (gCO2/euro of VA):',round(inc_emis_cont_fr['emission content'].min()))
-print('Max emission content in FR (gCO2/euro of VA):',round(inc_emis_cont_fr['emission content'].max()))
-print('mean emission content weighted by VA in FR (gCO2/euro of VA):', round(np.average(inc_emis_cont_fr['emission content'], weights=VA.loc[('FR')]['share of VA'])))
-print('Standard deviation of emission content in FR (gCO2/euro of VA):',round(inc_emis_cont_fr['emission content'].std()))
-
-print('mean emission content weighted by VA in RoW (gCO2/euro of VA):', round(np.average(inc_emis_cont.loc[inc_emis_cont['region']=='RoW','emission content'], weights=VA.loc[('RoW'),'share of VA'])))
-print('Standard deviation of emission content in RoW (gCO2/euro of VA):', round(inc_emis_cont.loc[inc_emis_cont['region']=='RoW','emission content'].std()))
-
+#####################
+###save quantities used in text
+#####################
+with open(output_path + 'section_carbon_intensity.tex','w') as file:
+    file.write('% file automatically generated by ' + this_file + eol)
+    file.write('% numbers used in main text' + eol)
+    file.write('\\newcommand\\minciFrance{' + "{:.1f}".format(min(carbon_intensity_France[carbon_intensity_France != 0])) + '} %min carbon intensity for France' + eol)
+    file.write('\\newcommand\\maxciFrance{' + "{:.1f}".format(max(carbon_intensity_France[carbon_intensity_France != 0])) + '} %max carbon intensity for France' + eol)
+    file.write('\\newcommand\\ciBZRoW{' + "{:.1f}".format(carbon_intensity_by_countries.loc['BZ','RoW']) + '} % carbon intensity for BZ in RoW' + eol)
+    file.write('\\newcommand\\ciDZRoW{' + "{:.1f}".format(carbon_intensity_by_countries.loc['DZ','RoW']) + '} % carbon intensity for DZ in RoW' + eol)
+    file.write('\\newcommand\\ciCDRoW{' + "{:.1f}".format(carbon_intensity_by_countries.loc['CD','RoW']) + '} % carbon intensity for CD in RoW' + eol)
+    #various quantity related to AZ for caption
+    file.write('\\newcommand\\ciAZFrance{' + "{:.0f}".format(carbon_intensity_France[('FR','AZ')]) + '} % carbon intensity for Agriculture in France' + eol)
+    file.write('\\newcommand\\sharedirectAZFrance{' + "{:.1f}".format(share_direct[('FR','AZ')]) + '} % carbon intensity for Agriculture in France' + eol)
+    file.write('\\newcommand\\sharefirstAZFrance{' + "{:.1f}".format(share_first_order[('FR','AZ')]) + '} % carbon intensity for Agriculture in France' + eol)
+    file.write('\\newcommand\\remainingshareAZFrance{' + "{:.1f}".format(100-share_direct[('FR','AZ')] - share_first_order[('FR','AZ')]) + '} % carbon intensity for Agriculture in France' + eol)
+    file.write('\\newcommand\\remainingshareCDFrance{' + "{:.1f}".format(100-share_direct[('FR','CD')] - share_first_order[('FR','CD')]) + '} % carbon intensity for Agriculture in France' + eol)
+    file.write('\\newcommand\\domesticshareAZFrance{' + "{:.1f}".format(share_domestic[('FR','AZ')]) + '} % carbon intensity for Agriculture in France' + eol)
+    file.write('\\newcommand\\abroadshareAZFrance{' + "{:.1f}".format(100-share_domestic[('FR','AZ')]) + '} % carbon intensity for Agriculture in France' + eol)
+    #mean carbon intensity: obtained by dividing total IBE by total VA, converted in g/CO2
+    file.write('\\newcommand\\meanciFrance{' + "{:.0f}".format(mean_ci['FR']) + '} % mean carbon intensity in France' + eol)
+    file.write('\\newcommand\\meanciRoW{' + "{:.0f}".format(mean_ci['RoW']) + '} % mean carbon intensity in RoW' + eol)
+    file.write('\\newcommand\\valueaddedFrance{' + "{:.0f}".format(V_agg.sum(axis=0)['FR'] * 1e-3) + '} % total value added in France' + eol)
+    file.write('\\newcommand\\totaliba{' + "{:.0f}".format(total_ibe_France) + '} %total income-based emissions France' + eol)
+    file.write('\\newcommand\\totalpba{' + "{:.0f}".format( io_orig.GHG_emissions.D_iba.sum(axis=1).sum(level='region')['FR']*1e-9) + '} %total production-based emissions France' + eol)
+    file.write('\\newcommand\\totalcba{' + "{:.0f}".format((io_orig.GHG_emissions.D_cba.sum(axis=0).sum(level='region')['FR'] + F_Y_final.sum(axis=1).sum(level='region')['FR']) *1e-9) + '} %total consumption-based emissions France' + eol)
+    file.write('\\newcommand\\shareCDtotal{' + "{:.1f}".format(share_emissions_France[('FR','CD')]) + '}%share of CD in total IB emissions France ' + eol)
+    file.write('\\newcommand\\emissionscapital{' + "{:.0f}".format(input_contribution_table.loc['Enabled emissions (Mt\CO)','Capital']) + '}% emissions of capital ' + eol)
+    file.write('\\newcommand\\shareemissionscapital{' + "{:.1f}".format(input_contribution_table.loc['Share of total emissions (\%)','Capital']) + '}% share of emissions of capital ' + eol)
+    file.write('\\newcommand\\paymentcapital{' + "{:.0f}".format(input_contribution_table.loc['Value added received (G\euro)','Capital']) + '}% va of capital ' + eol)
+    file.write('\\newcommand\\sharevacapital{' + "{:.1f}".format(input_contribution_table.loc['Share of value added (\%)','Capital']) + '}% share of value added of capital ' + eol)
+    file.write('\\newcommand\\meancicapital{' + "{:.1f}".format(input_contribution_table.loc['Mean downstream carbon intensity (\si{g\COe\per\euro})','Capital']) + '}% mean ci of capital ' + eol)
+    file.write('\\newcommand\\shareemissionslabour{' + "{:.1f}".format(input_contribution_table.loc['Share of total emissions (\%)','Labour']) + '}% share of emissions of capital ' + eol)
+    file.write('\\newcommand\\sharevalabour{' + "{:.1f}".format(input_contribution_table.loc['Share of value added (\%)','Labour']) + '}% share of value added of capital ' + eol)
+    file.write('\\newcommand\\meancilabour{' + "{:.1f}".format(input_contribution_table.loc['Mean downstream carbon intensity (\si{g\COe\per\euro})','Labour']) + '}% mean ci of capital ' + eol)
+    
 
 ##########################
 ###### SAVED file - to link with INSEE survey 
 ##########################
-ut.df_to_csv_with_comment(inc_emis_cont_fr, output_folder + os.sep + 'emission_content_france.csv', '# file automatically generated by ' + os.path.basename( os.getcwd()), sep=';')
-#inc_emis_cont.to_excel(output_path+'inc_emis_cont_pre.xlsx')
+carbon_intensity_France.name = 'carbon intensity'
+ut.df_to_csv_with_comment(carbon_intensity_France, output_path + 'carbon_intensity_france.csv', '# file automatically generated by ' + this_file, sep=';')
