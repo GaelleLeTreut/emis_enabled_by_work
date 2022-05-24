@@ -77,9 +77,9 @@ def proportion_generic_weighted(x, category):
 
 def apply_over_labels(fun,list_of_label, *args):
     """apply function for each label"""
-    d=pd.Series([])
+    d=pd.Series([],dtype='float64')
     for l in list_of_label:
-        d = d.append( fun(l, *args) )
+        d = pd.concat([d,  fun(l, *args) ])
     return d
 
 def stat_data_generic_df(list_of_label, x, fun):
