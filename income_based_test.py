@@ -147,10 +147,10 @@ if not os.path.exists(data_folder + os.sep + light_exiobase_folder):
     #F_Y_sec (i,j): emissions from households of countries j, to final demand addressed to sector i
     F_Y_sec = share_F_Y_sec * (np.transpose(F_Y.values))
  
-    Y_drop = io_orig.Y.drop(['Changes in inventories', 'Changes in valuables', 'Exports: Total (fob)','Gross fixed capital formation'], axis=1, level=1).sum(level=0,axis=1)
+    Y_drop = io_orig.Y.drop(['Changes in inventories', 'Changes in valuables', 'Exports: Total (fob)','Gross fixed capital formation'], axis=1, level=1).groupby(level=0,axis=1).sum()
 
     #element i,j contains final consumption (except the components excluded in previous lines) of countries j addressed to sector i
-    sum_Y_on_region_of_origin = Y_drop.sum(level='sector')    
+    sum_Y_on_region_of_origin = Y_drop.groupby(level='sector').sum()
         
      #spotting sector with problems: for this sector, there is emissions (according to F_Y_sec) but no final consumption (according to Y)
     df_problem = (sum_Y_on_region_of_origin == 0) & (F_Y_sec > 0)  
@@ -269,7 +269,7 @@ if not os.path.exists(data_folder + os.sep + light_exiobase_folder):
     io_orig.GHG_emissions.calc_system(x=io_orig.x, Y=io_orig.Y, L=io_orig.L, Y_agg=None, population=io_orig.population)
     io_orig.GHG_emissions.calc_income_based(x = io_orig.x, V=io_orig.V, G=io_orig.G, V_agg=None, population=io_orig.population)
 
-    V_agg = io_orig.V.sum(level='region', axis=1, ).reindex(io_orig.get_regions(), axis=1)
+    V_agg = io_orig.V.groupby(level='region', axis=1, ).sum().reindex(io_orig.get_regions(), axis=1)
     io_orig.GHG_emissions.D_iba_zero_order = pymrio.tools.iomath.calc_D_iba(io_orig.GHG_emissions.S, pd.DataFrame(np.identity(np.shape(io_orig.G.values)[0])), V_agg, io_orig.get_sectors().size)
     io_orig.GHG_emissions.D_iba_first_order = pymrio.tools.iomath.calc_D_iba(io_orig.GHG_emissions.S, io_orig.B, V_agg, io_orig.get_sectors().size)
     
@@ -323,7 +323,7 @@ region_list = list(io_orig.get_regions())
 ##########################
 ##########################
 
-V_agg = io_orig.V.sum(level='region', axis=1)
+V_agg = io_orig.V.groupby(level='region', axis=1).sum()
 
 ##########################
 ### downstream carbon intensity for aggregate sector and countries
@@ -347,17 +347,17 @@ first_carbon_intensity = pymrio.tools.iomath.recalc_N(io_orig.GHG_emissions.S, i
 carbon_intensity_France = downstream_carbon_intensity.sum(axis=0).loc['FR',:]
 share_direct = direct_carbon_intensity.sum(axis=0).loc['FR',:] / carbon_intensity_France * 100
 share_first_order = first_carbon_intensity.sum(axis=0).loc['FR',:] / carbon_intensity_France * 100
-share_domestic = downstream_carbon_intensity.sum(axis=0,level='region').loc['FR','FR'] / carbon_intensity_France * 100
+share_domestic = downstream_carbon_intensity.groupby(axis=0,level='region').sum().loc['FR','FR'] / carbon_intensity_France * 100
 #Series of income based emissions in MtCO2
 ib_emissions_France = io_orig.GHG_emissions.D_iba.sum(axis=0).loc['FR',:]*1e-9
 total_ibe_France = np.sum(ib_emissions_France)
 share_emissions_France = ib_emissions_France / total_ibe_France * 100
 
 #build and format for output in Latex
-decomposition_carbon_intensity_France = pd.concat([carbon_intensity_France, share_direct, share_first_order, share_domestic, ib_emissions_France,share_emissions_France],axis=1, keys=['Downstream carbon intensity', '\% direct emissions', '\% first-level emissions', '\% domestic emissions', 'Income-based emissions (Mt\COe)', '\% of total emissions'])
+decomposition_carbon_intensity_France = pd.concat([carbon_intensity_France, share_direct, share_first_order, share_domestic, ib_emissions_France,share_emissions_France],axis=1, keys=['Downstream carbon intensity', 'share (\%) of direct', 'share (\%) of first-level', 'share (\%) of domestic', 'Income-based emissions (Mt\COe)', '\% of total emissions'])
 decomposition_carbon_intensity_France.sort_values(by=['Downstream carbon intensity'], ascending = False, inplace = True )
 
-decomposition_carbon_intensity_France = decomposition_carbon_intensity_France.droplevel(level='region')
+#decomposition_carbon_intensity_France = decomposition_carbon_intensity_France.droplevel(level='region')
 decomposition_carbon_intensity_France.index.name = 'Industry'
 decomposition_carbon_intensity_France.reset_index(inplace = True)
 
@@ -366,7 +366,9 @@ decomposition_carbon_intensity_France = decomposition_carbon_intensity_France[de
 
 ##not to truncate long string when Industry is recoded
 with pd.option_context("max_colwidth", 1000):
-    decomposition_carbon_intensity_France.to_latex(output_path+"industry_carbon_intensity.tex",index=False,float_format = "{:.1f}".format,column_format='L{4cm}L{2cm}L{2cm}L{2cm}L{2cm}L{2cm}L{2cm}', escape=False)
+    decomposition_carbon_intensity_France.rename(columns =
+        {'Downstream carbon intensity':"Downstream carbon intensity (\si{g\COe\per\euro})"}, inplace= True)
+    decomposition_carbon_intensity_France.to_latex(output_path+"industry_carbon_intensity.tex",index=False,float_format = "{:.1f}".format,column_format='L{3cm}L{1.5cm}L{1.5cm}L{1.5cm}L{1.5cm}L{1.5cm}L{1.5cm}', escape=False)
 
 ###
 ###to investigate which products of Exiobase are included in aggregate industries
@@ -382,7 +384,7 @@ def Exiobase_product_from_industry_code(code):
 
 #aggregate value added over inputs and aggregate some inputs
 # Value added in M€
-V_agg_by_all_inputs = io_orig.V.sum(axis=1,level='category')#remove useless 'region' level in axis 1
+V_agg_by_all_inputs = io_orig.V.groupby(axis=1,level='category').sum()#remove useless 'region' level in axis 1
 #define how to aggregate primary inputs
 input_groups = {'Net taxes': ['Taxes less subsidies on products purchased: Total', 'Other net taxes on production'],
         'Compensation of employees': ["Compensation of employees; wages, salaries, & employers' social contributions: Low-skilled", "Compensation of employees; wages, salaries, & employers' social contributions: Medium-skilled", "Compensation of employees; wages, salaries, & employers' social contributions: High-skilled"],
@@ -396,8 +398,8 @@ V_agg_by_inputs = pd.DataFrame({k: V_agg_by_all_inputs[v].sum(axis=1) for k, v i
 #io_orig.V.sum(axis=1,level='category') #in M€
 ib_emissions_by_industry_and_inputs = V_agg_by_inputs.multiply(downstream_carbon_intensity.sum(axis=0), axis = 0) * 1e-6 #multiply value added by downstream carbon intensity, resulting emissions in MtCO2
 #also store total value added to perform same operations on it
-ib_emissions_by_industry_and_inputs.loc[('FR','value added'),:] = V_agg_by_inputs.sum(axis=0,level='region').loc['FR',:]
-ib_emissions_by_industry_and_inputs.loc[('RoW','value added'),:] = V_agg_by_inputs.sum(axis=0,level='region').loc['RoW',:]
+ib_emissions_by_industry_and_inputs.loc[('FR','value added'),:] = V_agg_by_inputs.groupby(axis=0,level='region').sum().loc['FR',:]
+ib_emissions_by_industry_and_inputs.loc[('RoW','value added'),:] = V_agg_by_inputs.groupby(axis=0,level='region').sum().loc['RoW',:]
 
 ib_emissions_matrix_France = ib_emissions_by_industry_and_inputs.loc['FR',:].drop('value added')
 ib_emissions_matrix_France['Total income-based emissions of industry'] = ib_emissions_matrix_France.sum(axis=1)
@@ -416,13 +418,13 @@ with pd.option_context("max_colwidth", 1000):
     ib_emissions_matrix_France.to_latex(output_path+"emissions_matrix.tex",index=False,float_format = "{:.1f}".format,column_format='L{4cm}L{2cm}L{2cm}L{2cm}L{2cm}L{2cm}L{2cm}L{2cm}L{2cm}')
 
 #diagnosis of the contribution of inputs
-mean_ci = io_orig.GHG_emissions.D_iba.sum(axis=0).sum(level='region') / V_agg.sum(axis=0)*1e-3
+mean_ci = io_orig.GHG_emissions.D_iba.sum(axis=0).groupby(level='region').sum() / V_agg.sum(axis=0)*1e-3
 decomposition_gap_va=(V_agg_by_inputs.loc['FR',:].multiply(1/V_agg.loc['FR','FR']*100,axis=0)).subtract(V_agg_by_inputs.loc['FR',:].sum(axis=0)/V_agg.loc['FR','FR'].sum(axis=0)*100 , axis =1) #compute the difference between the share of an input in the value-added of a sector and the mean share of that input in total value-added
 value_added_weight=pd.DataFrame(np.outer(V_agg.loc['FR','FR'], 1/(V_agg_by_inputs.loc['FR',:].sum(axis=0))), index= V_agg.loc['FR','FR'].index, columns = V_agg_by_inputs.loc['FR',:].sum(axis=0).index )
 
-decomposition_gap_ci=(decomposition_gap_va * value_added_weight).multiply(carbon_intensity_France.droplevel(level='region')-mean_ci['FR'],axis=0).fillna(0)/100
+decomposition_gap_ci=(decomposition_gap_va * value_added_weight).multiply(carbon_intensity_France-mean_ci['FR'],axis=0).fillna(0)/100
 
-decomposition_gap_ci['Downstream carbon intensity'] = carbon_intensity_France.droplevel(level='region')-mean_ci['FR']
+decomposition_gap_ci['Downstream carbon intensity'] = carbon_intensity_France-mean_ci['FR']
 decomposition_gap_ci.sort_values(by=['Downstream carbon intensity'], ascending = False, inplace = True )
 decomposition_gap_ci.sum(axis=0) #this give the difference between ci of an input and mean ci #caution: summing carbon intensity (last columns) has no meaning
 
