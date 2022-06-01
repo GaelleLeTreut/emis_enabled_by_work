@@ -97,6 +97,7 @@ pop_mass_per_sector_x_salary['emissions_capita'] = pop_mass_per_sector_x_salary[
 Lorenz_curve_data = ut.make_Lorenz_and_concentration_curves(np.transpose(np.array(pop_mass_per_sector_x_salary[['pop_mass','salary_value', 'emissions_capita']])),{'pop_mass':0,'income':1,'emissions':2},output_path + 'Lorenz_curve_French_employee','% data for Lorenz and concentration curves for French employees \n% file automatically created from ' + this_file )
 tck_income = interpolate.splrep(Lorenz_curve_data['pop_cum_by_income'], Lorenz_curve_data['income_cum_by_income'])
 tck_emissions = interpolate.splrep(Lorenz_curve_data['pop_cum_by_emissions'],Lorenz_curve_data['emissions_cum_by_emissions'])
+tck_concentrated_emissions = interpolate.splrep(Lorenz_curve_data['pop_cum_by_income'],Lorenz_curve_data['emissions_cum_by_income'])
 
 
 
@@ -117,6 +118,9 @@ with open(output_path+'section_inequalities_numbers.tex','a') as file:
     file.write('\\newcommand\\highestcarbonintensity{' + "{:.0f}".format(bts.dic_to_carbon_intensity_A35[highest_emitting_sector]) +'}' + eol)
     file.write('\\newcommand\\ratiowagesTB{' + "{:.1f}".format(interpolate.splev(0.9,tck_income)/interpolate.splev(0.1,tck_income)) +'}' + eol)
     file.write('\\newcommand\\ratioemissionTB{' + "{:.1f}".format(interpolate.splev(0.9,tck_emissions)/interpolate.splev(0.1,tck_emissions)) +'}' + eol)
+    file.write('\\newcommand\\emissionsbottomeighty{' + "{:.0f}".format(100 * interpolate.splev(0.8,tck_emissions)) +'}' + eol)
+    file.write('\\newcommand\\incomebottomeighty{' + "{:.0f}".format(100 * interpolate.splev(0.8,tck_income)) +'}' + eol)
+    file.write('\\newcommand\\concentratedemissionsbottomeighty{' + "{:.0f}".format(100 * interpolate.splev(0.8,tck_concentrated_emissions)) +'}' + eol)
         
 
 
