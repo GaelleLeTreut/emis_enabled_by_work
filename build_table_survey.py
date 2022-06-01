@@ -29,7 +29,7 @@ data_path = data_folder + os.sep
 
 if not os.path.isfile(output_path + 'carbon_intensity_france.csv'):
     exec(open("income_based_intensity.py").read())
-carbon_intensity_france = pd.read_csv( output_path + 'carbon_intensity_france.csv', sep=';', index_col=0, comment='#')
+carbon_intensity_france = pd.read_csv( output_path + 'carbon_intensity_france.csv', sep=';', comment='#')
 
 
 #convertir le fichier dBase de l'Insee en csv s'il ne l'est pas déjà
